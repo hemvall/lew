@@ -145,6 +145,12 @@ Pause lets the active agent finish and checkpoints its result before launching a
 
 After successful review and validation, **Publier une PR brouillon** pushes the final task branch and creates or reuses its draft PR. Publication is a human action; Lew never merges the PR automatically. A changed revision must be reviewed again. Git identity, push access and `GITHUB_TOKEN` must be configured on the worker.
 
+### Recovery and attention inbox
+
+Interrupting a mission or one of its agent conversations checkpoints it as interrupted and permits an explicit resume. Completed tasks and completed review stages are preserved. A retry after exhausted correction rounds starts a fresh attempt within the mission's original attempt and duration limits; reaching either limit rejects the resume without consuming another attempt. A failed interrupt request restores the active state.
+
+**À traiter** combines live agent approvals, mission plans awaiting approval, blocked work, interrupted conversations and missions, checkpointed pauses, and missions ready for draft-PR publication. The desktop widget and sidebar count use the same list. Historical failed agent conversations do not duplicate mission decisions. Filters search projects, branches and requested actions; each row opens the relevant mission or conversation. Incomplete reads are labeled explicitly and never displayed as “Tout est en ordre.”
+
 ### Portable avatars
 
 Import a version 1 `.avatar.json` (maximum 256 KiB) in **Agents**, preview it and assign it to a profile. Map execution states to expressions/animations present in the file. Missing avatars use initials. Animation pauses when offscreen, when the tab is hidden and with reduced motion enabled.

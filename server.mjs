@@ -1,4 +1,5 @@
 import { missionRoutes } from './mission-routes.mjs';
+import { attentionItems } from './public/attention-model.js';
 import http from 'node:http';
 import { configured, query, all, one, closeStorage, initializeStorage, storageState } from './storage.mjs';
 import { mkdirSync, readFileSync, existsSync } from 'node:fs';
@@ -102,12 +103,20 @@ async function api(req, path, params=new URLSearchParams()) {
   }
   if(req.method==='GET' && path==='/api/state') {
     await initializeStorage();
-    let projects=[],workspaces=[];
+    let projects=[],workspaces=[],attention={items:[],complete:false};
     if(storageState().ready) {
-      try {[projects,workspaces]=await Promise.all([all('SELECT * FROM projects'),all("SELECT w.*,e.data->'profile' AS agent_profile FROM workspaces w LEFT JOIN mission_executions e ON e.workspace_id=w.id")]);}
-      catch { /* Report storage health while keeping the desktop reachable. */ }
+      const results=await Promise.allSettled([
+        all('SELECT * FROM projects'),
+        all("SELECT w.*,e.data->'profile' AS agent_profile,e.mission_id FROM workspaces w LEFT JOIN mission_executions e ON e.workspace_id=w.id"),
+        all('SELECT data FROM missions ORDER BY created DESC')
+      ]);
+      if(results[0].status==='fulfilled')projects=results[0].value;
+      if(results[1].status==='fulfilled')workspaces=results[1].value;
+      const missionList=results[2].status==='fulfilled'?results[2].value.map(r=>r.data):[];
+      attention={items:attentionItems({projects,workspaces,missions:missionList,pendingWorkspaceIds:[...approvals.keys()].map(key=>key.slice(0,key.indexOf(':')))}),complete:results.every(r=>r.status==='fulfilled')};
+      if(!attention.complete)attention.error='Certaines décisions n’ont pas pu être chargées. Réessayez l’actualisation.';
     }
-    return {projects,workspaces,storage:storageState(),worker:{available:await codexAvailable()},authenticatedRemote:!!process.env.LEW_ACCESS_TOKEN};
+    return {projects,workspaces,attention,storage:storageState(),worker:{available:await codexAvailable()},authenticatedRemote:!!process.env.LEW_ACCESS_TOKEN};
   }
   if(req.method==='GET'&&path==='/api/github/repos')return listRepositories({page:params.get('page')||1,owner:params.get('owner')||process.env.GITHUB_USER||'hemvall'});
   if(req.method==='POST'&&path==='/api/github/import'){
@@ -215,6 +224,7 @@ const server=http.createServer(async(req,res)=>{
     catch(e){res.writeHead(400,{'Content-Type':'application/json'});res.end(JSON.stringify({error:e.message}));}return;
   }
   const allowed={'/':'index.html','/app.js':'app.js','/icons.js':'icons.js','/workspace-model.js':'workspace-model.js','/style.css':'style.css','/manifest.json':'manifest.json','/icon.svg':'icon.svg','/wallpaper.svg':'wallpaper.svg','/mission-ui.js':'mission-ui.js','/avatar-view.js':'avatar-view.js','/vendor/avatar-runtime.js':'vendor/avatar-runtime.js','/vendor/AVATAR-LICENSE.txt':'vendor/AVATAR-LICENSE.txt','/vendor/AJV-LICENSE.txt':'vendor/AJV-LICENSE.txt','/fonts/InterVariable.woff2':'fonts/InterVariable.woff2','/fonts/INTER-LICENSE.txt':'fonts/INTER-LICENSE.txt'};
+  allowed['/attention-model.js']='attention-model.js';
   if(!allowed[url.pathname]) {res.writeHead(404);return res.end();}
   res.setHeader('Content-Security-Policy',"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'");
   res.setHeader('Content-Type',url.pathname.endsWith('.woff2')?'font/woff2':url.pathname.endsWith('.txt')?'text/plain':url.pathname.endsWith('.js')?'text/javascript':url.pathname.endsWith('.css')?'text/css':url.pathname.endsWith('.svg')?'image/svg+xml':url.pathname.endsWith('.json')?'application/json':'text/html');

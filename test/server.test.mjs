@@ -17,6 +17,8 @@ test('API access is gated and Supabase configuration never leaks to the browser'
     assert.equal((await fetch(url+'/api/workspaces/test/stream')).status,401);
     const response=await fetch(url+'/api/state',{headers:{Authorization:'Bearer test-only-access-token'}});
     assert.equal(response.status,200);const data=await response.json();assert.equal(data.storage.provider,'supabase');assert.equal(data.storage.configured,false);assert.equal('DATABASE_URL' in data,false);
+    assert.equal(data.attention.complete,false);assert.deepEqual(data.attention.items,[]);
+    assert.equal((await fetch(url+'/attention-model.js')).status,200);
     assert.equal((await fetch(url+'/.env')).status,404);
     assert.equal((await fetch(url+'/api/auth/login',{method:'POST',headers:{Origin:'https://other.example',Authorization:'Bearer test-only-access-token'}})).status,403);
   }finally{child.kill();await once(child,'exit');rmSync(dir,{recursive:true,force:true});}
