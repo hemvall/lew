@@ -7,7 +7,7 @@ const exec=promisify(execFile);
 export async function git(cwd,args){return (await exec('git',args,{cwd,timeout:120000,maxBuffer:8e6})).stdout;}
 export async function github(repo,path='',options={}){
   if(options.method && options.method!=='GET' && !process.env.GITHUB_TOKEN) throw new Error('Configurez GITHUB_TOKEN côté worker pour créer une PR.');
-  const result=await fetch(`https://api.github.com/repos/${repo}/${path}`,{method:options.method||'GET',headers:{Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28',...(process.env.GITHUB_TOKEN?{Authorization:`Bearer ${process.env.GITHUB_TOKEN}`} :{}),...(options.body?{'Content-Type':'application/json'}:{})},body:options.body?JSON.stringify(options.body):undefined,signal:AbortSignal.timeout(20000)});
+  const result=await fetch(`https://api.github.com/repos/${repo}${path?'/'+path:''}`,{method:options.method||'GET',headers:{Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28',...(process.env.GITHUB_TOKEN?{Authorization:`Bearer ${process.env.GITHUB_TOKEN}`} :{}),...(options.body?{'Content-Type':'application/json'}:{})},body:options.body?JSON.stringify(options.body):undefined,signal:AbortSignal.timeout(20000)});
   if(!result.ok)throw new Error(`GitHub : HTTP ${result.status}. Vérifiez les droits du token sur ce repo.`);
   return result.json();
 }
