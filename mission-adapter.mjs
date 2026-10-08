@@ -31,7 +31,13 @@ export class MissionAdapter {
       if(m.method==='item/completed'){const item=m.params.item;if(item?.type==='agentMessage')text=item.text||text;if(item?.type==='commandExecution')commands.push({command:item.command,exitCode:item.exitCode,output:String(item.aggregatedOutput||'').slice(-12000)});}
       if(m.method==='serverRequest/resolved')this.approvals.delete(`${w.id}:${m.params.requestId}`);
       if(m.id!==undefined&&m.method){if(['item/commandExecution/requestApproval','item/fileChange/requestApproval'].includes(m.method)){this.approvals.set(`${w.id}:${m.id}`,m);await this.query("UPDATE workspaces SET status='waiting' WHERE id=?",w.id);}else c.send({id:m.id,error:{code:-32601,message:'Interaction non prise en charge'}});}
-      if(m.method==='turn/completed'){await this.query('UPDATE workspaces SET status=? WHERE id=?',m.params.turn.status==='completed'?'completed':m.params.turn.status==='interrupted'?'interrupted':'failed',w.id);finish(m.params.turn.status==='completed'?null:new Error('Exécution Codex '+m.params.turn.status));}
+      if(m.method==='turn/completed'){
+        const status=m.params.turn.status;
+        await this.query('UPDATE workspaces SET status=? WHERE id=?',status==='completed'?'completed':status==='interrupted'?'interrupted':'failed',w.id);
+        const error=status==='completed'?null:new Error('Exécution Codex '+status);
+        if(status==='interrupted')error.code='MISSION_STOPPED';
+        finish(error);
+      }
       if(m.method==='lew/workerError')finish(new Error('Le worker Codex a été interrompu.'));
     }).catch(e=>finish(e));});
     this.workers.set(w.id,c);

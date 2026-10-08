@@ -13,13 +13,28 @@ export class MissionEngine {
     const m={id:randomUUID(),projectId:project.id,project:structuredClone(project),objective,criteria,base,profiles:structuredClone(profiles),limits:limits(input.limits),status:'planning',tasks:[],executions:[],startedAt:Date.now(),plan:null,activeWorkspace:null,error:null};
     await this.store.save(m);await this.store.event(m.id,'created',{text:objective});this.launch(m.id,true);return m;
   }
-  launch(id,planning=false){if(this.running.has(id))return;const job=this.queue.then(()=>this.run(id,planning)).catch(async e=>{const m=await this.store.get(id);if(e.code==='MISSION_STOPPED'){if(m.status==='interrupting'){m.status='interrupted';await this.store.save(m);}return;}if(!['cancelled','interrupted','interrupting'].includes(m.status)){m.status='blocked';m.error=e.message;for(const task of m.tasks)if(task.status==='running')task.status='interrupted';await this.store.save(m);await this.store.event(id,'error',{text:e.message});}}).finally(()=>this.running.delete(id));this.running.set(id,job);this.queue=job.catch(()=>{});}
+  launch(id,planning=false){
+    if(this.running.has(id))return;
+    const job=this.queue.then(()=>this.run(id,planning)).catch(async e=>{
+      const m=await this.store.get(id);
+      if(['interrupting','interrupted'].includes(m.status)||(e.code==='MISSION_STOPPED'&&['running','planning'].includes(m.status))){
+        m.status='interrupted';m.activeWorkspace=null;
+        for(const task of m.tasks)if(task.status==='running')task.status='interrupted';
+        await this.store.save(m);return;
+      }
+      if(e.code==='MISSION_STOPPED'||['cancelled','interrupted'].includes(m.status))return;
+      m.status='blocked';m.error=e.message;
+      for(const task of m.tasks)if(task.status==='running')task.status='interrupted';
+      await this.store.save(m);await this.store.event(id,'error',{text:e.message});
+    }).finally(()=>this.running.delete(id));
+    this.running.set(id,job);this.queue=job.catch(()=>{});
+  }
   async execute(m,role,task,cwd,handoff,schema){
     if(Date.now()>m.startedAt+m.limits.durationMinutes*60000)throw new Error('Durée maximale de mission atteinte.');
     const profile=m.profiles[role],ex={id:randomUUID(),role,taskId:task?.id||null,profile:structuredClone(profile),status:'running',startedAt:Date.now()};m.executions.push(ex);await this.store.save(m);
     try{const w=await this.adapter.workspace(m,role,task,cwd);ex.workspaceId=w.id;m.activeWorkspace=w.id;await this.store.save(m);await this.store.execution(m.id,w,ex);await this.store.event(m.id,'execution',{role,workspaceId:w.id,text:`${profile.name} : ${task?.title||'planification'}`});
     const output=await this.adapter.execute(w,profile,agentPrompt(profile,m.project,m.objective+'\nCritères : '+m.criteria,task?.instructions||'Proposer un plan séquentiel de tâches de développement. Chaque tâche après la première dépend de la précédente. Aucun travail avant approbation humaine.',handoff),schema,m.startedAt+m.limits.durationMinutes*60000,async()=>{const fresh=await this.store.get(m.id);return ['running','planning'].includes(fresh.status);});ex.status='completed';ex.result=output;ex.finishedAt=Date.now();return output;}
-    catch(e){ex.status=e.code==='MISSION_STOPPED'?'blocked':'error';ex.error=e.message;throw e;}
+    catch(e){ex.status=e.code==='MISSION_STOPPED'?'interrupted':'error';ex.error=e.message;throw e;}
     finally{m.activeWorkspace=null;await this.store.save(m);}
   }
   async boundary(m){const fresh=await this.store.get(m.id);m.status=fresh.status;m.version=fresh.version;if(['cancelled','interrupting','interrupted'].includes(m.status)){if(m.status==='interrupting'){m.status='interrupted';await this.store.save(m);}return false;}if(m.status==='paused')return false;return true;}
@@ -72,5 +87,33 @@ export class MissionEngine {
     if(!await this.boundary(m))return;m.status='ready';m.error=null;await this.store.save(m);await this.store.event(id,'ready',{text:'Revue et validation terminées. La PR attend votre décision.'});
   }
   async approve(id,plan){if(this.controls.has(id))throw new Error('Action déjà en cours.');this.controls.add(id);try{const m=await this.store.get(id);if(m.status!=='awaiting_plan')throw new Error('Plan non disponible pour approbation.');m.plan=validatePlan(plan);m.tasks=m.plan.tasks.map(t=>({...t,status:'pending',attempts:0,round:0}));m.baseHead=await this.adapter.baseHead(m);m.startedAt=Date.now();m.status='running';await this.store.save(m);await this.store.event(id,'plan_approved',{plan:m.plan,baseHead:m.baseHead});this.launch(id);return m;}finally{this.controls.delete(id);}}
-  async control(id,action){if(this.controls.has(id))throw new Error('Action déjà en cours.');this.controls.add(id);try{if(action==='resume'&&this.running.has(id))throw new Error('Attendez la fin de l’exécution active avant de reprendre.');const m=await this.store.get(id);m.status=transition(m.status,action);await this.store.save(m);await this.store.event(id,action,{text:action});if(['interrupt','cancel'].includes(action)&&m.activeWorkspace)await this.adapter.interrupt(m.activeWorkspace);else if(action==='interrupt'){m.status='interrupted';await this.store.save(m);}if(action==='resume'){for(const t of m.tasks){if(t.status==='interrupted'||(t.status==='running'&&m.executions.at(-1)?.status==='error')){t.status='pending';}if(m.error?.includes('invalidée')){t.stage='development';t.review=null;t.validation=null;}}m.error=null;await this.store.save(m);this.launch(id,m.plan===null);}return m;}finally{this.controls.delete(id);}}
+  async control(id,action){
+    if(this.controls.has(id))throw new Error('Action déjà en cours.');
+    this.controls.add(id);
+    try{
+      if(action==='resume'&&this.running.has(id))throw new Error('Attendez la fin de l’exécution active avant de reprendre.');
+      const m=await this.store.get(id),previous=m.status,next=transition(m.status,action);
+      if(action==='resume'){
+        if(Date.now()>m.startedAt+m.limits.durationMinutes*60000)throw new Error('Durée maximale de mission atteinte. Créez une nouvelle mission pour poursuivre.');
+        for(const t of m.tasks){
+          if(t.status==='completed')continue;
+          if(t.status==='interrupted'||(t.status==='running'&&['error','interrupted'].includes(m.executions.at(-1)?.status)))t.status='pending';
+          // A fresh attempt gets its correction rounds; completed tasks stay checkpointed.
+          if(t.status==='pending')t.round=0;
+          if(m.error?.includes('invalidée')){t.stage='development';t.review=null;t.validation=null;}
+        }
+        const task=m.tasks.find(t=>t.status!=='completed');
+        if(task&&task.status!=='running'&&(task.attempts||0)>=m.limits.attempts)throw new Error(`Nombre maximal de tentatives atteint : ${task.title}. Créez une nouvelle mission pour poursuivre.`);
+        m.error=null;
+      }
+      m.status=next;await this.store.save(m);
+      if(['interrupt','cancel'].includes(action)&&m.activeWorkspace){
+        try{await this.adapter.interrupt(m.activeWorkspace);}
+        catch(e){if(action==='interrupt'){const fresh=await this.store.get(id);if(fresh.status==='interrupting'&&fresh.activeWorkspace){fresh.status=previous;await this.store.save(fresh);}}throw e;}
+      }else if(action==='interrupt'){m.status='interrupted';await this.store.save(m);}
+      await this.store.event(id,action,{text:action});
+      if(action==='resume')this.launch(id,m.plan===null);
+      return m;
+    }finally{this.controls.delete(id);}
+  }
 }
