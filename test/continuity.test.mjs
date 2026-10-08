@@ -34,3 +34,7 @@ test('resume context distinguishes live approvals, expired approvals and actual 
   assert.match(workspaceResume({status:'waiting'},events).nextAction,/Actualiser/);
   assert.equal(workspaceResume({status:'failed'},[{id:'2',kind:'error',data:{text:'Tests failed'}}]).blocker,'Tests failed');
 });
+test('mission-owned conversations point recovery back to the mission',()=>{
+  const result=workspaceResume({title:'Agent review',status:'interrupted',mission_id:'m',mission_context:{objective:'Improve navigation'}},[]);
+  assert.equal(result.objective,'Improve navigation');assert.match(result.nextAction,/mission/);
+});

@@ -153,6 +153,10 @@ Interrupting a mission or one of its agent conversations checkpoints it as inter
 
 ### Returning to work
 
+Use **+ Mission** on a project to open mission planning with that project selected. The launch form reads its real default branch and requires an explicit choice when GitHub is unavailable. Rapid project changes cannot apply a branch response from a different project.
+
+Agent conversations display their parent mission, role and current task stage, with **Retour à la mission**. Mission-owned conversations retain approvals and readable history; continuation, commits and publication use the mission's controls. Mission details also offer a copy-link action.
+
 Conversation and mission URLs keep their selection after reload and support browser back/forward navigation. Conversations offer a copy-link action and a resume panel derived from recorded history: objective, latest completed response, human decisions, current blocker and next action. Unfinished agent responses are not presented as completed results.
 
 Composer drafts are saved separately for each conversation in this browser and restored after reload. A failed submission keeps the draft; a successful submission clears it. The composer reports when browser storage is unavailable. Drafts are local to the device; the resume context comes from the durable conversation history.

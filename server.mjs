@@ -1,4 +1,5 @@
 import { missionRoutes } from './mission-routes.mjs';
+import { missionContext } from './mission-context.mjs';
 import { attentionItems } from './public/attention-model.js';
 import http from 'node:http';
 import { configured, query, all, one, closeStorage, initializeStorage, storageState } from './storage.mjs';
@@ -113,6 +114,7 @@ async function api(req, path, params=new URLSearchParams()) {
       if(results[0].status==='fulfilled')projects=results[0].value;
       if(results[1].status==='fulfilled')workspaces=results[1].value;
       const missionList=results[2].status==='fulfilled'?results[2].value.map(r=>r.data):[];
+      workspaces=workspaces.map(w=>({...w,mission_context:missionContext(w,missionList)}));
       attention={items:attentionItems({projects,workspaces,missions:missionList,pendingWorkspaceIds:[...approvals.keys()].map(key=>key.slice(0,key.indexOf(':')))}),complete:results.every(r=>r.status==='fulfilled')};
       if(!attention.complete)attention.error='Certaines décisions n’ont pas pu être chargées. Réessayez l’actualisation.';
     }
