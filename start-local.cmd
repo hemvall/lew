@@ -17,6 +17,6 @@ if not exist .env (
   notepad .env
   exit /b 0
 )
-echo lew : http://localhost:3000
+echo Demarrage de lew... L'adresse sera affichee par le serveur.
 node --env-file=.env server.mjs
 if errorlevel 1 pause
