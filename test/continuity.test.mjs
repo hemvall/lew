@@ -38,3 +38,10 @@ test('mission-owned conversations point recovery back to the mission',()=>{
   const result=workspaceResume({title:'Agent review',status:'interrupted',mission_id:'m',mission_context:{objective:'Improve navigation'}},[]);
   assert.equal(result.objective,'Improve navigation');assert.match(result.nextAction,/mission/);
 });
+test('successful submission cannot clear a newer draft written while the request was pending',()=>{
+  const persisted=storage(),drafts=createDraftStore(()=>persisted);
+  drafts.set('a','Submitted instruction');drafts.set('a','Next instruction');
+  assert.equal(drafts.clearSubmitted('a','Submitted instruction'),false);
+  assert.equal(createDraftStore(()=>persisted).get('a'),'Next instruction');
+  assert.equal(drafts.clearSubmitted('a','Next instruction'),true);assert.equal(createDraftStore(()=>persisted).get('a'),'');
+});

@@ -20,6 +20,7 @@ export function createDraftStore(getStorage){
       }catch{saved.set(id,false);return false;}
     },
     delete(id){return this.set(id,'');},
+    clearSubmitted(id,text){if(this.get(id)!==text)return false;this.delete(id);return true;},
     persisted(id){return saved.get(id)===true;}
   };
 }
