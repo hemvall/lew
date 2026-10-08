@@ -13,3 +13,20 @@ body{background:#181b2e url('/wallpaper.svg') center/cover fixed no-repeat;min-h
 @media(max-width:800px){.desktop-menubar{height:42px;gap:0;padding:0 12px}.desktop-menubar>button{display:none}.desktop-menubar .menubar-brand{display:flex;padding:0;margin:0}.menubar-right{gap:12px}.menubar-right time{font-size:10px}.desktop-menubar .menubar-right button{display:none}.desktop-dock{bottom:12px;border-radius:21px;gap:11px;padding:10px 13px 14px;width:auto}.dock-item{width:43px;height:43px;border-radius:11px}.dock-item svg{width:27px;height:27px}.dock-home{font-size:34px}.dock-divider{height:32px;margin:0}.shell{margin:56px 10px 100px;min-height:calc(100dvh - 156px);border-radius:14px}aside{height:100dvh;top:0;background:rgba(35,36,52,.97)}.window-controls{display:none}header{padding:0 14px;height:53px}#content{padding:23px 17px}.breadcrumb{font-size:11px}body[data-view=home] .shell{margin:57px 15px 104px;min-height:calc(100dvh - 161px)}.desktop-widgets{grid-template-columns:1fr 1fr;gap:12px}.desktop-widget{border-radius:22px;padding:16px}.widget-projects{grid-column:1/3;grid-row:1}.widget-projects .widget-project-links{margin-top:12px}.widget-projects .widget-project-links p{margin-top:0}.widget-projects .widget-numbers{gap:40px}.widget-activity{grid-column:1;grid-row:2;min-height:205px}.widget-review{grid-column:2;grid-row:2}.widget-storage{grid-column:1;grid-row:3}.widget-codex{grid-column:2;grid-row:3;min-height:220px}.widget-title{font-size:11px}.widget-numbers{gap:17px}.widget-numbers small{font-size:9px;max-width:65px}.widget-numbers strong{font-size:24px}.widget-right{display:none}.codex-status{flex-direction:column;align-items:flex-start;margin:18px 0 12px;gap:12px}.codex-status h2{font-size:12px}.codex-status p{font-size:10px}.codex-app{height:42px;width:42px;font-size:25px}.glass-button{font-size:10px;padding:9px;width:100%}.desktop-recent{grid-column:1/3;grid-row:4;padding:12px 2px}.desktop-heading h1{font-size:23px}.start-project{padding:17px}.storage-app{margin:23px 0 18px}.widget-ring{margin-top:25px}.project-actions{flex-wrap:wrap}.desktop-menubar+ .shell{position:static}body[data-view=home] #notice .alert{font-size:10px;line-height:1.5;padding:11px 13px}.desktop-heading p{font-size:11px}.window-maximized .shell{margin:56px 10px 100px}}
 @media(prefers-reduced-motion:reduce){.dock-item{transition:none}}
 body{display:flow-root}.desktop-widget{align-content:start}
+/* Motion is triggered by navigation, never by the background polling loop. */
+@media(prefers-reduced-motion:no-preference){
+  .dock-item{transition:transform .32s cubic-bezier(.22,1,.36,1),box-shadow .25s}
+  .dock-item:hover,.dock-item:focus-visible{transform:translateY(-9px) scale(1.12);box-shadow:inset 0 1px 1px #ffffff55,0 10px 18px #0004}
+  .dock-item:active{transform:translateY(-3px) scale(.96)}
+  .desktop-widget,.project-card,.row,.glass-button,.primary,.secondary{transition:background-color .2s,border-color .2s,box-shadow .25s,transform .25s cubic-bezier(.22,1,.36,1)}
+  button.desktop-widget:hover,.project-card:hover{transform:translateY(-3px);box-shadow:0 16px 34px #0002,inset 0 1px 0 #ffffff10}
+  button.desktop-widget:active,.project-card:active{transform:scale(.985)}
+  .primary:active,.secondary:active,.glass-button:active{transform:scale(.97)}
+  .shell{transition:margin .35s cubic-bezier(.22,1,.36,1),min-height .35s cubic-bezier(.22,1,.36,1),width .35s cubic-bezier(.22,1,.36,1)}
+  dialog::backdrop{animation:backdrop-in .2s ease-out}
+  #toast{animation:toast-in .22s ease-out}
+}
+@keyframes backdrop-in{from{opacity:0}to{opacity:1}}
+@keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(hover:none){.dock-item:hover{transform:none}button.desktop-widget:hover,.project-card:hover{transform:none}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}

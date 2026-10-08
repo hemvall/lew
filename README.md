@@ -100,3 +100,15 @@ Le service tourne sous l’utilisateur lew. Les worktrees et les données Codex 
 Pagination des événements, reprise idempotente des commandes, résumés de conversations et variantes sur une nouvelle branche. Une exécution réelle complète et la connexion Postgres du worker cible restent à valider après installation.
 
 Voir les documents dans `docs/` pour le parcours cible et la direction visuelle.
+
+## Si Supabase ne répond pas au démarrage
+
+Lew démarre son serveur HTTP immédiatement, affiche l’état réel du stockage et réessaie automatiquement après une erreur. Les projets ne peuvent être enregistrés qu’une fois la base joignable. La récupération des tâches interrompues se fait une seule fois par démarrage.
+
+Pour une erreur « connection timeout », utilisez **Connect → Session pooler** (port **5432**) dans Supabase : la connexion directe exige généralement IPv6, alors que le pooler fonctionne en IPv4. Copiez le nom d’hôte et l’utilisateur exacts du dashboard, remplacez le mot de passe PostgreSQL et encodez les caractères spéciaux dans l’URL. Vérifiez que le projet est actif. Dans PowerShell :
+
+```powershell
+Test-NetConnection HOST_DU_POOLER -Port 5432
+```
+
+Si `TcpTestSucceeded` est faux, vérifiez le réseau, le VPN et le pare-feu. Relancez `start-local.cmd` après toute modification de `.env`. Ne désactivez pas la vérification TLS ; utilisez `SUPABASE_CA_FILE` si le certificat est demandé.

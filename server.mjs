@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { configured, query, all, one, closeStorage } from './storage.mjs';
+import { configured, query, all, one, closeStorage, initializeStorage, storageState } from './storage.mjs';
 import { mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
@@ -10,7 +10,7 @@ import { codexCommand } from './codex-command.mjs';
 import { snapshot, commitSelected, publish, pullRequestStatus } from './delivery.mjs';
 const exec = promisify(execFile), root = resolve(process.env.LEW_DATA_DIR || '.lew');
 mkdirSync(root, { recursive: true });
-if(configured) await query("UPDATE workspaces SET status='interrupted' WHERE status IN ('running','waiting')");
+
 const workers = new Map(), locks = new Set(), approvals = new Map();
 const event = async (id, kind, data) => query('INSERT INTO events(workspace_id,kind,data) VALUES(?,?,?)',id,kind,JSON.stringify(data));
 async function workspace(id) { const w = await one('SELECT * FROM workspaces WHERE id=?', id); if (!w) throw new Error('Espace introuvable'); return w; }
@@ -87,7 +87,15 @@ async function api(req, path) {
     if(configured && (await all("SELECT id FROM workspaces WHERE status IN ('running','waiting')")).length) throw new Error('Interrompez les tâches avant de vous déconnecter.');
     await (await authWorker()).request('account/logout');for(const c of workers.values())c.close();workers.clear();authNotice=null;return {ok:true};
   }
-  if(req.method==='GET' && path==='/api/state') return {projects:configured ? await all('SELECT * FROM projects') : [],workspaces:configured ? await all('SELECT * FROM workspaces') : [],storage:{configured,provider:'supabase',project:'Linkedin-Prospection',schema:'lew'},worker: {available:await codexAvailable()}, authenticatedRemote:!!process.env.LEW_ACCESS_TOKEN};
+  if(req.method==='GET' && path==='/api/state') {
+    await initializeStorage();
+    let projects=[],workspaces=[];
+    if(storageState().ready) {
+      try {[projects,workspaces]=await Promise.all([all('SELECT * FROM projects'),all('SELECT * FROM workspaces')]);}
+      catch { /* Report storage health while keeping the desktop reachable. */ }
+    }
+    return {projects,workspaces,storage:storageState(),worker:{available:await codexAvailable()},authenticatedRemote:!!process.env.LEW_ACCESS_TOKEN};
+  }
   if(req.method==='POST' && path==='/api/projects') {
     const b=await body(req), id=randomUUID(), name=text(b.name), repo=text(b.repo);
     if(!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error('Utilisez owner/repo');
@@ -175,5 +183,5 @@ const server=http.createServer(async(req,res)=>{
 });
 const host=process.env.LEW_HOST||'127.0.0.1';
 if(host!=='127.0.0.1'&&host!=='localhost'&&!process.env.LEW_ACCESS_TOKEN) throw new Error('LEW_ACCESS_TOKEN est requis pour une écoute distante');
-server.listen(Number(process.env.PORT||3000),host,()=>console.log(`lew · http://${host}:${server.address().port}`));
+server.listen(Number(process.env.PORT||3000),host,()=>{console.log(`lew · http://${host}:${server.address().port}`);initializeStorage().then(s=>{if(s.error)console.warn(s.error);});});
 process.on('SIGTERM',()=>{authClient?.close();for(const c of workers.values())c.close();server.close(async()=>{await closeStorage();process.exit();});});
