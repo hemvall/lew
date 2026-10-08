@@ -1,20 +1,20 @@
 # lew
 
-Votre espace pour piloter des projets avec Codex, retrouver le contexte d’une tâche et passer entre ses branches et ses conversations, sur desktop et mobile.
+Your workspace for managing projects with Codex, recovering task context, and switching between branches and conversations on desktop and mobile.
 
-## Première version
+## First version
 
-- Bureau inspiré de la référence macOS : fond sombre avec courbes, widgets translucides, barre de menus, dock et fenêtre de travail. Interface responsive et recherche Cmd/Ctrl+K.
-- Projets GitHub avec leurs instructions modifiables, branches et PR ouvertes.
-- Une branche et un worktree isolé par tâche.
-- Conversations, événements et états persistés dans Supabase Postgres.
-- Adaptateur Codex App Server : création/reprise de thread, messages, interruption, demandes de validation.
-- Connexion au compte Codex par code d’appareil, compatible avec un worker distant et un téléphone.
-- Livraison : sélection des fichiers, commit, push sans force, création de PR en brouillon et suivi de CI.
+- A macOS-inspired desktop: dark curved background, translucent widgets, menu bar, dock, and workspace window. Responsive interface with Cmd/Ctrl+K search.
+- GitHub projects with editable instructions, branches, and open PRs.
+- An isolated branch and worktree for each task.
+- Conversations, events, and states persisted in Supabase Postgres.
+- Codex App Server adapter: thread creation/resumption, messages, interruption, and approval requests.
+- Codex account sign-in through a device code, compatible with a remote worker and a phone.
+- Delivery: file selection, commits, pushes without force, draft PR creation, and CI tracking.
 
-## Sur votre PC Windows
+## On your Windows PC
 
-Depuis le dossier du repo, par exemple `D:\repos\lew` :
+From the repository directory, for example `D:\repos\lew`:
 
 ```bat
 cd /d D:\repos\lew
@@ -23,92 +23,92 @@ npm ci
 start-local.cmd
 ```
 
-Au premier lancement, le script crée `.env` et l’ouvre dans le Bloc-notes. Renseignez `DATABASE_URL`, enregistrez puis relancez `start-local.cmd`. Ouvrez http://localhost:3000 et connectez Codex depuis le dock.
+On first launch, the script creates `.env` and opens it in Notepad. Set `DATABASE_URL`, save, and run `start-local.cmd` again. Open http://localhost:3000 and connect Codex from the dock.
 
-Le lanceur se place automatiquement dans le dossier de lew. Les installations npm de Codex sous Windows sont résolues vers leur script Node officiel, sans dépendre de l’exécution d’un shim `.cmd` par le serveur.
+The launcher automatically switches to the lew directory. Windows npm installations of Codex are resolved to their official Node script, without relying on the server to execute a `.cmd` shim.
 
-Votre PC héberge le worker. Les tâches continuent lorsque vous fermez le navigateur, tant que le serveur reste lancé et que le PC reste éveillé. La base reste sur Supabase et les worktrees/historiques Codex restent sur votre PC.
+Your PC hosts the worker. Tasks continue after you close the browser as long as the server stays running and the PC stays awake. The database remains on Supabase, while worktrees and Codex history remain on your PC.
 
-## Démarrer manuellement
+## Starting manually
 
-Node 22.13+ et Git sont nécessaires. Installez Codex sur la machine qui exécutera les tâches :
+Node 22.13+ and Git are required. Install Codex on the machine that will execute tasks:
 
 ```sh
 npm install -g @openai/codex
 npm ci
 ```
 
-Copiez `.env.example` vers `.env` et renseignez `DATABASE_URL` avec l’URL **Session pooler** depuis le panneau Connect de Supabase. L’URL et les identifiants restent exclusivement côté serveur. TLS vérifie le certificat ; renseignez `SUPABASE_CA_FILE` avec le certificat Supabase si votre environnement en a besoin.
+Copy `.env.example` to `.env` and set `DATABASE_URL` to the **Session pooler** URL from Supabase's Connect panel. The URL and credentials remain server-side only. TLS verifies the certificate; set `SUPABASE_CA_FILE` to the Supabase certificate if your environment requires it.
 
 ```sh
 node --env-file=.env server.mjs
 ```
 
-Ouvrez http://localhost:3000 puis **Votre espace → Connecter Codex**. Ouvrez la page officielle et saisissez le code affiché. Codex conserve et renouvelle lui-même les identifiants sur le worker. Si le code d’appareil est désactivé sur votre compte, activez-le dans les paramètres de sécurité ChatGPT ou connectez Codex avec son CLI sur le worker.
+Open http://localhost:3000, then select **Votre espace → Connecter Codex** (“Your workspace → Connect Codex” in the current French interface). Open the official page and enter the displayed code. Codex stores and refreshes credentials on the worker itself. If device-code sign-in is disabled for your account, enable it in ChatGPT's security settings or sign in using the Codex CLI on the worker.
 
-Sans `DATABASE_URL`, l’interface affiche la configuration requise et n’enregistre aucune donnée localement. Il n’y a pas de stockage SQLite de secours.
+Without `DATABASE_URL`, the interface displays the required configuration and does not store data locally. There is no SQLite fallback.
 
 ## Supabase
 
-Le schéma privé `lew` a été appliqué au projet existant `Linkedin-Prospection` (`cxnjjgwiizummimxytsx`). Il contient `projects`, `workspaces` et `events`. Les tables de prospection restent séparées.
+The private `lew` schema was applied to the existing `Linkedin-Prospection` project (`cxnjjgwiizummimxytsx`). It contains `projects`, `workspaces`, and `events`. Prospecting tables remain separate.
 
-Le schéma n’est pas exposé via la Data API, les accès `anon` et `authenticated` sont révoqués et RLS est activé. Les accès se font depuis le serveur avec la connexion Postgres. L’absence de politiques est intentionnelle pour ce schéma privé : aucun accès client direct n’est prévu.
+The schema is not exposed through the Data API, access for `anon` and `authenticated` is revoked, and RLS is enabled. Access happens from the server through the Postgres connection. The absence of policies is intentional for this private schema: direct client access is not intended.
 
-`supabase/schema.sql` reproduit le DDL initial appliqué par le connecteur. Pour une installation neuve, appliquez-le une seule fois sur votre propre projet.
+`supabase/schema.sql` reproduces the initial DDL applied through the connector. For a new installation, apply it once to your own project.
 
-## Accès depuis un téléphone
+## Access from a phone
 
-Exécutez lew sur une machine persistante. Configurez `LEW_HOST=0.0.0.0`, un long `LEW_ACCESS_TOKEN` aléatoire et un reverse proxy HTTPS. Le code d’accès sera demandé à chaque nouvelle session de navigateur. Aucun identifiant Postgres, GitHub ou Codex n’est transmis au navigateur.
+Run lew on a persistent machine. Configure `LEW_HOST=0.0.0.0`, a long random `LEW_ACCESS_TOKEN`, and an HTTPS reverse proxy. The access code is requested for each new browser session. No Postgres, GitHub, or Codex credentials are sent to the browser.
 
-Cette version utilise un worker unique et un compte Codex unique. Conservez `.lew/` et le répertoire personnel de Codex : les worktrees et l’historique natif Codex restent sur cette machine. Supabase conserve les métadonnées et les événements, mais ne remplace pas ces fichiers. Fermer le navigateur laisse le worker actif ; redémarrer le serveur marque les tâches actives comme interrompues.
+This version uses one worker and one Codex account. Preserve `.lew/` and Codex's home directory: worktrees and native Codex history remain on that machine. Supabase stores metadata and events but does not replace these files. Closing the browser leaves the worker active; restarting the server marks active tasks as interrupted.
 
-Pour les repos privés, configurez le credential helper Git sur le worker. `GITHUB_TOKEN` est facultatif pour consulter les branches/PR et ne configure pas automatiquement Git.
+For private repositories, configure Git's credential helper on the worker. `GITHUB_TOKEN` is optional for viewing branches/PRs and does not automatically configure Git.
 
-## Vérification
+## Verification
 
 ```sh
 npm run check
 npm test
 ```
 
-Les tests contrôlent le protocole Codex avec un processus simulé, les erreurs et accès API, les commits sélectifs et la publication de PR réessayable avec de vrais repos Git temporaires et un transport GitHub simulé. Ils ne remplacent pas une exécution réelle sur votre worker ni un test de connexion à votre Postgres.
+Tests verify the Codex protocol with a simulated process, API errors and access, selective commits, and retryable PR publication using real temporary Git repositories and a simulated GitHub transport. They do not replace a real execution on your worker or a connection test against your Postgres instance.
 
-## Livraison GitHub
+## GitHub delivery
 
-Dans une tâche, ouvrez **Livraison** dans l’inspecteur. Relisez les modifications, choisissez les fichiers et créez un commit. La revue est invalidée si les fichiers ont changé entre-temps. Les fichiers non suivis sont inclus dans la sélection ; le diff textuel actuel concerne les fichiers suivis.
+Inside a task, open **Livraison** (“Delivery”) in the inspector. Review changes, select files, and create a commit. The review is invalidated if files have changed in the meantime. Untracked files are included in the selection; the current text diff covers tracked files.
 
-**Créer une PR** envoie les commits sur la branche de la tâche et ouvre une PR en brouillon par défaut. Une PR déjà ouverte pour cette branche est réutilisée. Les modifications locales non commitées restent sur le worker. La CI est relue avec **Actualiser** ; un accès incomplet aux contrôles est affiché explicitement. Le merge se fait pour l’instant sur GitHub.
+**Créer une PR** (“Create a PR”) pushes commits to the task branch and opens a draft PR by default. An existing PR for that branch is reused. Uncommitted local changes remain on the worker. CI is refreshed using **Actualiser** (“Refresh”); incomplete access to checks is explicitly displayed. Merging currently happens on GitHub.
 
-Configurez un token GitHub côté serveur avec accès au repo : Pull requests en écriture, Checks et Commit statuses en lecture. Configurez également le credential helper Git pour le push et l’identité de commit du compte lew. Le token API ne configure pas automatiquement les identifiants Git.
+Configure a server-side GitHub token with repository access: write access to Pull requests, and read access to Checks and Commit statuses. Also configure Git's credential helper for pushes and the lew account's commit identity. The API token does not automatically configure Git credentials.
 
-## Installation sur un VPS
+## Installing on a VPS
 
-Les fichiers dans `deploy/` préparent une installation Linux avec systemd et HTTPS via Caddy. Ils ne provisionnent pas de serveur.
+Files in `deploy/` prepare a Linux installation with systemd and HTTPS through Caddy. They do not provision a server.
 
-1. Installez Node 22+, npm, Git et Caddy sur le serveur.
-2. Depuis un checkout de lew, lancez `sudo bash deploy/install.sh`. Le script crée un utilisateur lew et installe Codex 0.159.2.
-3. Configurez `/etc/lew/lew.env` : connexion Supabase, un long `LEW_ACCESS_TOKEN`, puis éventuellement `GITHUB_TOKEN`.
-4. Configurez l’identité et les identifiants Git pour l’utilisateur lew.
-5. Configurez votre domaine dans `deploy/Caddyfile`, pointez-le vers le serveur et rechargez Caddy.
-6. Lancez `sudo systemctl enable --now lew` puis consultez `sudo journalctl -u lew -f` si nécessaire.
-7. Ouvrez votre domaine, entrez le code d’accès lew et connectez Codex par code d’appareil.
+1. Install Node 22+, npm, Git, and Caddy on the server.
+2. From a lew checkout, run `sudo bash deploy/install.sh`. The script creates a lew user and installs Codex 0.159.2.
+3. Configure `/etc/lew/lew.env`: Supabase connection, a long `LEW_ACCESS_TOKEN`, and optionally `GITHUB_TOKEN`.
+4. Configure Git identity and credentials for the lew user.
+5. Configure your domain in `deploy/Caddyfile`, point it to the server, and reload Caddy.
+6. Run `sudo systemctl enable --now lew`, then inspect `sudo journalctl -u lew -f` if needed.
+7. Open your domain, enter the lew access code, and connect Codex using a device code.
 
-Le service tourne sous l’utilisateur lew. Les worktrees et les données Codex doivent rester sur un disque persistant. Le script ne remplace pas votre configuration existante et ne démarre pas le service avant que vous ayez renseigné la connexion.
+The service runs as the lew user. Worktrees and Codex data must remain on persistent storage. The script does not overwrite your existing configuration or start the service before you configure the connection.
 
-## Prochaines étapes
+## Next steps
 
-Pagination des événements, reprise idempotente des commandes, résumés de conversations et variantes sur une nouvelle branche. Une exécution réelle complète et la connexion Postgres du worker cible restent à valider après installation.
+Event pagination, idempotent command recovery, conversation summaries, and variations on a new branch. A complete real execution and the target worker's Postgres connection still need to be validated after installation.
 
-Voir les documents dans `docs/` pour le parcours cible et la direction visuelle.
+See the documents in `docs/` for the target user journey and visual direction.
 
-## Si Supabase ne répond pas au démarrage
+## If Supabase does not respond at startup
 
-Lew démarre son serveur HTTP immédiatement, affiche l’état réel du stockage et réessaie automatiquement après une erreur. Les projets ne peuvent être enregistrés qu’une fois la base joignable. La récupération des tâches interrompues se fait une seule fois par démarrage.
+Lew starts its HTTP server immediately, displays the actual storage status, and retries automatically after an error. Projects can only be saved once the database is reachable. Interrupted-task recovery runs once per server startup.
 
-Pour une erreur « connection timeout », utilisez **Connect → Session pooler** (port **5432**) dans Supabase : la connexion directe exige généralement IPv6, alors que le pooler fonctionne en IPv4. Copiez le nom d’hôte et l’utilisateur exacts du dashboard, remplacez le mot de passe PostgreSQL et encodez les caractères spéciaux dans l’URL. Vérifiez que le projet est actif. Dans PowerShell :
+For a “connection timeout” error, use **Connect → Session pooler** (port **5432**) in Supabase: direct connections generally require IPv6, while the pooler supports IPv4. Copy the exact hostname and username from the dashboard, replace the PostgreSQL password, and URL-encode special characters. Check that the project is active. In PowerShell:
 
 ```powershell
-Test-NetConnection HOST_DU_POOLER -Port 5432
+Test-NetConnection POOLER_HOST -Port 5432
 ```
 
-Si `TcpTestSucceeded` est faux, vérifiez le réseau, le VPN et le pare-feu. Relancez `start-local.cmd` après toute modification de `.env`. Ne désactivez pas la vérification TLS ; utilisez `SUPABASE_CA_FILE` si le certificat est demandé.
+If `TcpTestSucceeded` is false, check the network, VPN, and firewall. Run `start-local.cmd` again after any `.env` change. Do not disable TLS verification; use `SUPABASE_CA_FILE` if a certificate is required.
