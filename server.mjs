@@ -6,6 +6,7 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { Codex } from './codex.mjs';
+import { codexCommand } from './codex-command.mjs';
 import { snapshot, commitSelected, publish, pullRequestStatus } from './delivery.mjs';
 const exec = promisify(execFile), root = resolve(process.env.LEW_DATA_DIR || '.lew');
 mkdirSync(root, { recursive: true });
@@ -65,6 +66,7 @@ async function authWorker() {
   })();
   try {return await authPromise;} finally {authPromise=null;}
 }
+async function codexAvailable(){try{const command=codexCommand();await exec(command.file,[...command.args,'--version'],{timeout:5000});return true;}catch{return false;}}
 async function api(req, path) {
   if(path==='/api/auth/status' && req.method==='GET') {
     try {const c=await authWorker(); const info=await c.request('account/read',{refreshToken:false});return {...info,available:true,notice:authNotice,pendingLogin};}
@@ -85,7 +87,7 @@ async function api(req, path) {
     if(configured && (await all("SELECT id FROM workspaces WHERE status IN ('running','waiting')")).length) throw new Error('Interrompez les tâches avant de vous déconnecter.');
     await (await authWorker()).request('account/logout');for(const c of workers.values())c.close();workers.clear();authNotice=null;return {ok:true};
   }
-  if(req.method==='GET' && path==='/api/state') return {projects:configured ? await all('SELECT * FROM projects') : [],workspaces:configured ? await all('SELECT * FROM workspaces') : [],storage:{configured,provider:'supabase',project:'Linkedin-Prospection',schema:'lew'},worker: {available:!!(await exec(process.env.LEW_CODEX_BIN || 'codex',['--version'],{timeout:5000}).catch(()=>null))}, authenticatedRemote:!!process.env.LEW_ACCESS_TOKEN};
+  if(req.method==='GET' && path==='/api/state') return {projects:configured ? await all('SELECT * FROM projects') : [],workspaces:configured ? await all('SELECT * FROM workspaces') : [],storage:{configured,provider:'supabase',project:'Linkedin-Prospection',schema:'lew'},worker: {available:await codexAvailable()}, authenticatedRemote:!!process.env.LEW_ACCESS_TOKEN};
   if(req.method==='POST' && path==='/api/projects') {
     const b=await body(req), id=randomUUID(), name=text(b.name), repo=text(b.repo);
     if(!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error('Utilisez owner/repo');
@@ -165,7 +167,7 @@ const server=http.createServer(async(req,res)=>{
     try { const result=await api(req,url.pathname);res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(result)); }
     catch(e){res.writeHead(400,{'Content-Type':'application/json'});res.end(JSON.stringify({error:e.message}));}return;
   }
-  const allowed={'/':'index.html','/app.js':'app.js','/style.css':'style.css','/manifest.json':'manifest.json','/icon.svg':'icon.svg'};
+  const allowed={'/':'index.html','/app.js':'app.js','/style.css':'style.css','/manifest.json':'manifest.json','/icon.svg':'icon.svg','/wallpaper.svg':'wallpaper.svg'};
   if(!allowed[url.pathname]) {res.writeHead(404);return res.end();}
   res.setHeader('Content-Security-Policy',"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'");
   res.setHeader('Content-Type',url.pathname.endsWith('.js')?'text/javascript':url.pathname.endsWith('.css')?'text/css':url.pathname.endsWith('.svg')?'image/svg+xml':url.pathname.endsWith('.json')?'application/json':'text/html');

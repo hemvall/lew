@@ -1,7 +1,7 @@
 # Direction visuelle
 
 ## Intention
-Une application de travail calme, inspirée des conventions de macOS : sidebar, barre d'outils, liste et inspecteur. Les informations de projet et de branche restent visibles.
+La référence fournie le 8 octobre 2026 remplace la direction initiale : un bureau macOS sombre avec wallpaper à courbes, widgets translucides, barre de menus supérieure et dock. Les projets et conversations s’ouvrent dans une fenêtre avec sidebar et inspecteur. Les informations de repo et de branche restent visibles.
 
 ## Desktop
 - Sidebar de 240 px environ, redimensionnable : accueil, projets, favoris et travaux récents.
@@ -11,21 +11,21 @@ Une application de travail calme, inspirée des conventions de macOS : sidebar, 
 - Panneaux redimensionnables et préférence de disposition conservée.
 
 ## Style
-- Fond clair gris chaud, surfaces presque blanches ; mode sombre équivalent.
-- Translucidité légère dans la sidebar et la barre d'outils avec fond opaque de secours.
-- Accent bleu pour sélection et action principale.
+- Fond sombre à courbes et reflets bleus/violets, réalisé en SVG local. Mode sombre par défaut ; apparence claire disponible pour la fenêtre.
+- Widgets et dock en verre sombre avec blur, contours fins et ombres. Fenêtre plus opaque pour préserver la lisibilité des conversations et diffs.
+- Accent violet pour les actions ; icônes de dock en bleu, violet, rose et gris.
 - Typographie système : -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif.
 - Police monospace pour branches, commandes et diffs.
 - Bordures fines, ombres légères, arrondis de 10 à 14 px, espacement fondé sur 4 et 8 px.
 - Icônes cohérentes, simples, accompagnées de labels pour les actions importantes.
-- Aucun faux bouton de fenêtre macOS dans l'application web.
+- Contrôles de fenêtre fonctionnels : retour au bureau, réduction au bureau et agrandissement de la fenêtre.
 
 ## Interaction
 Une action principale par vue. Les détails techniques se déplient à la demande. Les statuts ont un libellé et ne reposent jamais uniquement sur une couleur.
 Recherche rapide via Cmd/Ctrl+K, navigation clavier, focus visible et respect de la réduction des animations.
 
 ## Mobile
-Sous 768 px, affichage d'un panneau à la fois. Navigation Projets, Activité et À traiter ; dans une tâche, onglets Conversation, Changements et Contexte.
+Sous 800 px, widgets réorganisés sur deux colonnes, dock tactile fixe et fenêtre avec un panneau à la fois. Navigation Bureau, Projets, Activité, À traiter et Compte ; dans une tâche, onglets Conversation et Changements & contexte.
 Actions tactiles de 44 px minimum, saisie qui reste accessible avec le clavier, contenu sans débordement horizontal sauf les blocs de code.
 Le repo et la branche apparaissent avant toute action qui modifie le travail.
 

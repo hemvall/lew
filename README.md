@@ -4,7 +4,7 @@ Votre espace pour piloter des projets avec Codex, retrouver le contexte d’une 
 
 ## Première version
 
-- Interface responsive inspirée de macOS, thèmes clair et sombre, recherche rapide Cmd/Ctrl+K.
+- Bureau inspiré de la référence macOS : fond sombre avec courbes, widgets translucides, barre de menus, dock et fenêtre de travail. Interface responsive et recherche Cmd/Ctrl+K.
 - Projets GitHub avec leurs instructions modifiables, branches et PR ouvertes.
 - Une branche et un worktree isolé par tâche.
 - Conversations, événements et états persistés dans Supabase Postgres.
@@ -12,7 +12,24 @@ Votre espace pour piloter des projets avec Codex, retrouver le contexte d’une 
 - Connexion au compte Codex par code d’appareil, compatible avec un worker distant et un téléphone.
 - Livraison : sélection des fichiers, commit, push sans force, création de PR en brouillon et suivi de CI.
 
-## Démarrer
+## Sur votre PC Windows
+
+Depuis le dossier du repo, par exemple `D:\repos\lew` :
+
+```bat
+cd /d D:\repos\lew
+npm install -g @openai/codex
+npm ci
+start-local.cmd
+```
+
+Au premier lancement, le script crée `.env` et l’ouvre dans le Bloc-notes. Renseignez `DATABASE_URL`, enregistrez puis relancez `start-local.cmd`. Ouvrez http://localhost:3000 et connectez Codex depuis le dock.
+
+Le lanceur se place automatiquement dans le dossier de lew. Les installations npm de Codex sous Windows sont résolues vers leur script Node officiel, sans dépendre de l’exécution d’un shim `.cmd` par le serveur.
+
+Votre PC héberge le worker. Les tâches continuent lorsque vous fermez le navigateur, tant que le serveur reste lancé et que le PC reste éveillé. La base reste sur Supabase et les worktrees/historiques Codex restent sur votre PC.
+
+## Démarrer manuellement
 
 Node 22.13+ et Git sont nécessaires. Installez Codex sur la machine qui exécutera les tâches :
 
