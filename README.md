@@ -151,6 +151,12 @@ Interrupting a mission or one of its agent conversations checkpoints it as inter
 
 **À traiter** combines live agent approvals, mission plans awaiting approval, blocked work, interrupted conversations and missions, checkpointed pauses, and missions ready for draft-PR publication. The desktop widget and sidebar count use the same list. Historical failed agent conversations do not duplicate mission decisions. Filters search projects, branches and requested actions; each row opens the relevant mission or conversation. Incomplete reads are labeled explicitly and never displayed as “Tout est en ordre.”
 
+### Returning to work
+
+Conversation and mission URLs keep their selection after reload and support browser back/forward navigation. Conversations offer a copy-link action and a resume panel derived from recorded history: objective, latest completed response, human decisions, current blocker and next action. Unfinished agent responses are not presented as completed results.
+
+Composer drafts are saved separately for each conversation in this browser and restored after reload. A failed submission keeps the draft; a successful submission clears it. The composer reports when browser storage is unavailable. Drafts are local to the device; the resume context comes from the durable conversation history.
+
 ### Portable avatars
 
 Import a version 1 `.avatar.json` (maximum 256 KiB) in **Agents**, preview it and assign it to a profile. Map execution states to expressions/animations present in the file. Missing avatars use initials. Animation pauses when offscreen, when the tab is hidden and with reduced motion enabled.

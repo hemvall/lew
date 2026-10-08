@@ -225,6 +225,7 @@ const server=http.createServer(async(req,res)=>{
   }
   const allowed={'/':'index.html','/app.js':'app.js','/icons.js':'icons.js','/workspace-model.js':'workspace-model.js','/style.css':'style.css','/manifest.json':'manifest.json','/icon.svg':'icon.svg','/wallpaper.svg':'wallpaper.svg','/mission-ui.js':'mission-ui.js','/avatar-view.js':'avatar-view.js','/vendor/avatar-runtime.js':'vendor/avatar-runtime.js','/vendor/AVATAR-LICENSE.txt':'vendor/AVATAR-LICENSE.txt','/vendor/AJV-LICENSE.txt':'vendor/AJV-LICENSE.txt','/fonts/InterVariable.woff2':'fonts/InterVariable.woff2','/fonts/INTER-LICENSE.txt':'fonts/INTER-LICENSE.txt'};
   allowed['/attention-model.js']='attention-model.js';
+  for(const name of ['draft-store','navigation-model','resume-model'])allowed[`/${name}.js`]=`${name}.js`;
   if(!allowed[url.pathname]) {res.writeHead(404);return res.end();}
   res.setHeader('Content-Security-Policy',"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'");
   res.setHeader('Content-Type',url.pathname.endsWith('.woff2')?'font/woff2':url.pathname.endsWith('.txt')?'text/plain':url.pathname.endsWith('.js')?'text/javascript':url.pathname.endsWith('.css')?'text/css':url.pathname.endsWith('.svg')?'image/svg+xml':url.pathname.endsWith('.json')?'application/json':'text/html');

@@ -167,6 +167,18 @@ body[data-view="workspace"] .composer textarea{min-height:42px;max-height:180px;
 @media(prefers-reduced-motion:reduce) and (min-width:801px){body:not([data-view="home"]) .desktop-dock{transition:none}}
 
 .attention-row{align-items:center;gap:12px}
+.resume-card{border-bottom:1px solid var(--border);font-size:12px}
+.resume-card>summary{padding:10px 16px;cursor:pointer;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;min-height:44px}
+.resume-card>summary strong{font-size:12px}.resume-card>summary span{color:var(--muted);font-size:11px}
+.resume-card>div{padding:0 16px 12px;max-height:190px;overflow:auto}
+.resume-context{padding:16px;border-bottom:1px solid var(--border)}.resume-context h3{font-size:14px;margin:0 0 14px}
+.resume-field{margin:0 0 13px}.resume-field>strong{display:block;font-size:11px;margin-bottom:5px;color:var(--text)}
+.resume-field p,.resume-instruction p{font-size:12px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.resume-field ul{padding-left:18px;margin:5px 0;font-size:12px;color:var(--muted)}
+.resume-blocker{border-left:2px solid #dcaa65;padding-left:10px}
+.resume-instruction{font-size:12px;margin:12px 0}.resume-instruction summary{cursor:pointer;min-height:32px}
+#draft-status{display:block;color:var(--muted);font-size:10px;line-height:1.4;margin:3px 0 5px}#draft-status.draft-unsaved{color:#dcaa65}
+.workspace-heading{flex-wrap:wrap}#copy-workspace-link{white-space:nowrap}
 .attention-filters input,.attention-filters select,#refresh-attention{min-height:44px}
 .attention-row .grow{min-width:0;white-space:normal}
 .attention-row strong,.attention-row small,.attention-detail{overflow-wrap:anywhere}
