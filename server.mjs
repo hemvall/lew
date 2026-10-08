@@ -69,7 +69,7 @@ async function authWorker() {
   })();
   try {return await authPromise;} finally {authPromise=null;}
 }
-const missions=missionRoutes({root,query,all,one,body,authWorker,event,workers,approvals});
+const missions=missionRoutes({root,query,all,one,body,authWorker,event,workers,approvals,storageState});
 async function codexAvailable(){try{const command=codexCommand();await exec(command.file,[...command.args,'--version'],{timeout:5000});return true;}catch{return false;}}
 async function api(req, path, params=new URLSearchParams()) {
   const missionResult=await missions.route(req,path);if(missionResult!==null)return missionResult;
@@ -214,10 +214,10 @@ const server=http.createServer(async(req,res)=>{
       const result=await api(req,url.pathname,url.searchParams);res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(result)); }
     catch(e){res.writeHead(400,{'Content-Type':'application/json'});res.end(JSON.stringify({error:e.message}));}return;
   }
-  const allowed={'/':'index.html','/app.js':'app.js','/workspace-model.js':'workspace-model.js','/style.css':'style.css','/manifest.json':'manifest.json','/icon.svg':'icon.svg','/wallpaper.svg':'wallpaper.svg','/mission-ui.js':'mission-ui.js','/avatar-view.js':'avatar-view.js','/vendor/avatar-runtime.js':'vendor/avatar-runtime.js','/vendor/AVATAR-LICENSE.txt':'vendor/AVATAR-LICENSE.txt','/vendor/AJV-LICENSE.txt':'vendor/AJV-LICENSE.txt'};
+  const allowed={'/':'index.html','/app.js':'app.js','/workspace-model.js':'workspace-model.js','/style.css':'style.css','/manifest.json':'manifest.json','/icon.svg':'icon.svg','/wallpaper.svg':'wallpaper.svg','/mission-ui.js':'mission-ui.js','/avatar-view.js':'avatar-view.js','/vendor/avatar-runtime.js':'vendor/avatar-runtime.js','/vendor/AVATAR-LICENSE.txt':'vendor/AVATAR-LICENSE.txt','/vendor/AJV-LICENSE.txt':'vendor/AJV-LICENSE.txt','/fonts/InterVariable.woff2':'fonts/InterVariable.woff2','/fonts/INTER-LICENSE.txt':'fonts/INTER-LICENSE.txt'};
   if(!allowed[url.pathname]) {res.writeHead(404);return res.end();}
   res.setHeader('Content-Security-Policy',"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'");
-  res.setHeader('Content-Type',url.pathname.endsWith('.txt')?'text/plain':url.pathname.endsWith('.js')?'text/javascript':url.pathname.endsWith('.css')?'text/css':url.pathname.endsWith('.svg')?'image/svg+xml':url.pathname.endsWith('.json')?'application/json':'text/html');
+  res.setHeader('Content-Type',url.pathname.endsWith('.woff2')?'font/woff2':url.pathname.endsWith('.txt')?'text/plain':url.pathname.endsWith('.js')?'text/javascript':url.pathname.endsWith('.css')?'text/css':url.pathname.endsWith('.svg')?'image/svg+xml':url.pathname.endsWith('.json')?'application/json':'text/html');
   res.end(readFileSync(new URL(`./public/${allowed[url.pathname]}`,import.meta.url)));
 });
 const host=process.env.LEW_HOST||'127.0.0.1';

@@ -152,3 +152,11 @@ Import a version 1 `.avatar.json` (maximum 256 KiB) in **Agents**, preview it an
 The framework-free `@bible-strong/avatar-core` and `@bible-strong/avatar-web` runtimes are pinned to 0.1.0. `npm run build:avatars` reproduces the committed browser bundle using esbuild and a precompiled schema validator, preserving the strict CSP without `unsafe-eval`. No Studio, React, Vite or pnpm workspace is imported. Runtime licensing and source links are documented in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 Existing installations need `supabase/migrations/20261008102118_mission_orchestration.sql`; it has already been applied to the connected Lew Supabase project. New installations can use the complete `supabase/schema.sql`. Run `npm ci`, `npm run build:avatars`, `npm run check` and `npm test` after switching to this branch.
+
+### Lew OS routing and built-in team
+
+The default team now includes four animated portable avatars: Atlas (planning), Nova (development), Iris (review) and Pulse (validation). They ship with Lew and do not require an avatar import. Bootstrap upgrades legacy default profiles only once, preserving custom avatars and subsequent explicit removals. During a storage outage the built-in catalog remains viewable; editing and mission execution still require Supabase.
+
+Mission launch selects active profiles by role automatically, preferring the editable role defaults and using a stable fallback when a default is disabled. Explicit overrides remain available in advanced options. Assignment is deterministic and validated server-side; the selected team is snapshotted before execution. The approval screen uses editable task cards rather than raw JSON.
+
+Typography uses native system fonts on Apple devices and a locally hosted Inter Variable 4.1 fallback on Windows/Linux. The font license is included under `public/fonts/INTER-LICENSE.txt`. Avatar lighting adds volume to the existing Avatar Lab procedural SVG projection; animation follows execution states and pauses offscreen, in hidden tabs and with reduced motion.
