@@ -9,10 +9,16 @@
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test test/*.test.mjs",
-    "check": "node --check server.mjs && node --check storage.mjs && node --check codex-command.mjs && node --check codex.mjs && node --check delivery.mjs && node --check codex-usage.mjs && node --check github-workspace.mjs && node --check event-stream.mjs && node --check public/workspace-model.js && node --check public/app.js",
-    "start:local": "node --env-file=.env server.mjs"
+    "check": "node --check server.mjs && node --check storage.mjs && node --check codex-command.mjs && node --check codex.mjs && node --check delivery.mjs && node --check codex-usage.mjs && node --check github-workspace.mjs && node --check event-stream.mjs && node --check public/workspace-model.js && node --check public/app.js && node --check agents.mjs && node --check mission-model.mjs && node --check missions.mjs && node --check mission-adapter.mjs && node --check mission-routes.mjs && node --check public/mission-ui.js && node --check public/avatar-view.js && node --check agent-catalog.mjs && node --check agent-instructions.mjs && node --check public/icons.js",
+    "start:local": "node --env-file=.env server.mjs",
+    "build:avatars": "node scripts/build-avatars.mjs"
   },
   "dependencies": {
+    "@bible-strong/avatar-core": "0.1.0",
+    "@bible-strong/avatar-web": "0.1.0",
     "pg": "8.16.3"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
   }
 }

@@ -1,0 +1,23 @@
+import { createAvatar } from './vendor/avatar-runtime.js';
+let entries=[],observer,serial=0;const motion=matchMedia('(prefers-reduced-motion: reduce)');
+export function destroyAvatars(){observer?.disconnect();for(const e of entries){e.lighting?.disconnect();e.controller.destroy();}entries=[];}
+function apply(e){const {controller,mapping}=e;if(document.hidden||!e.visible||motion.matches){controller.pause();e.node.dataset.animating='false';return;}if(mapping?.kind==='animation'){const current=controller.getState();const result=current.status==='playing'&&current.activeAnimation===mapping.key?{ok:true}:controller.play(mapping.key);e.node.dataset.animating=String(result.ok);return;}else if(mapping?.kind==='expression')controller.setExpression(mapping.key);else controller.pause();e.node.dataset.animating=String(mapping?.kind==='animation');}
+function lightAvatar(node,color){const ns='http://www.w3.org/2000/svg',id='lew-avatar-light-'+ ++serial;const mix=(amount)=>'#'+[1,3,5].map(i=>{const n=parseInt(color.slice(i,i+2),16);return Math.round(amount>0?n+(255-n)*amount:n*(1+amount)).toString(16).padStart(2,'0');}).join('');
+  function paint(){const svg=node.querySelector('svg');if(!svg)return;if(!svg.querySelector('#'+id)){const defs=document.createElementNS(ns,'defs'),g=document.createElementNS(ns,'radialGradient');g.id=id;g.setAttribute('cx','32%');g.setAttribute('cy','22%');g.setAttribute('r','78%');for(const [offset,c] of [['0%',mix(.6)],['36%',mix(.12)],['74%',color],['100%',mix(-.46)]]){const stop=document.createElementNS(ns,'stop');stop.setAttribute('offset',offset);stop.setAttribute('stop-color',c);g.append(stop);}defs.append(g);svg.prepend(defs);}for(const path of svg.querySelectorAll('path,ellipse,circle,polygon'))if(path.getAttribute('fill')?.toLowerCase()===color.toLowerCase())path.setAttribute('fill',`url(#${id})`);}
+  const changes=new MutationObserver(paint);changes.observe(node,{childList:true,subtree:true,attributes:true,attributeFilter:['fill']});paint();return changes;
+}
+export function mountAvatars(root,profiles){
+  if(!observer)observer=new IntersectionObserver(records=>{for(const r of records){const e=entries.find(e=>e.node===r.target);if(e){e.visible=r.isIntersecting;apply(e);}}});
+  const previous=entries,next=[];
+  for(const node of root.querySelectorAll('[data-avatar-profile]')){
+    const p=profiles.find(p=>p.id===node.dataset.avatarProfile);if(!p?.avatar?.definition)continue;
+    const state=node.dataset.agentState||'idle',mapping=p.mapping?.[state]||(p.avatar.definition.animations.idle?{kind:'animation',key:'idle'}:null),size=Math.max(36,node.clientWidth||160),key=JSON.stringify([p.id,state,mapping,size,p.avatar.definition]);
+    // Polling replaces cards, but must not reset the avatar's blink clock.
+    const existing=previous.find(e=>e.key===key&&!next.includes(e)&&(!e.node.isConnected||root.contains(e.node)));
+    if(existing){if(existing.node!==node)node.replaceWith(existing.node);next.push(existing);continue;}
+    try{node.replaceChildren();const controller=createAvatar(node,{definition:p.avatar.definition,autoplay:false,size,ariaLabel:p.avatar.name});if(mapping?.kind==='expression')controller.setExpression(mapping.key);controller.pause();const e={key,node,controller,mapping,visible:false,lighting:lightAvatar(node,p.avatar.definition.colors.body)};next.push(e);observer.observe(node);}catch{node.textContent=p.name?.[0]||'•';node.dataset.avatarError='true';}
+  }
+  for(const e of previous)if(!next.includes(e)){observer.unobserve(e.node);e.lighting?.disconnect();e.controller.destroy();}
+  entries=next;
+}
+for(const source of [document,motion])source.addEventListener(source===document?'visibilitychange':'change',()=>{for(const e of entries)apply(e);});

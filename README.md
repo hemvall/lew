@@ -134,3 +134,33 @@ For private repos, the token needs Metadata/Contents/Pull requests read access, 
 After signing in, the desktop widget displays the account plan, quota windows, percentage used/remaining, server-provided reset dates and available earned resets. **View my usage** opens all available quota buckets, credit information, account activity and workspace notices. **Continue to my projects** closes the account dialog and opens the project library.
 
 Data comes from Codex App Server (`account/read`, `account/rateLimits/read`, `account/usage/read`, `account/workspaceMessages/read`). Reads are cached for 45 seconds and refreshed by the browser every minute; the refresh button requests a new reading. Missing metrics and unsupported methods are explicitly marked unavailable, rather than rendered as zero. Reset dates use the browser's local timezone. Earned resets are displayed without automatically consuming credits.
+
+## Agents and missions (issue #6)
+
+Open **Agents** to edit, duplicate or deactivate the four default profiles. A profile controls the actual Codex model/effort, sandbox and approval policy; the model list comes from the local worker. Project constraints take precedence over profile instructions. Every mission snapshots its profiles and avatars, so later edits do not change an ongoing execution.
+
+Open **Missions**, choose a project and base branch, then describe the objective and acceptance criteria. Codex proposes a structured plan in a read-only worktree. Edit and approve the plan before development starts. This first version supports a sequential chain of up to twelve tasks, one explicit Git parent per task and one mission agent at a time. Each task gets its own development branch. Review and validation use separate worktrees pinned to the resulting commit. Changes invalidate review; validation must have observed successful tool commands and leave its tracked source revision unchanged. Correction rounds, retry attempts and the overall duration are bounded.
+
+Pause lets the active agent finish and checkpoints its result before launching another agent. Interrupt stops the current turn. Cancel retains history and worktrees. Restart recovery marks active missions interrupted; it never silently repeats a command or publishes a PR. Resume is explicit, with completed tasks preserved. Questions and shell/file approvals remain in the individual conversation; plan and delivery decisions also appear in **À traiter**.
+
+After successful review and validation, **Publier une PR brouillon** pushes the final task branch and creates or reuses its draft PR. Publication is a human action; Lew never merges the PR automatically. A changed revision must be reviewed again. Git identity, push access and `GITHUB_TOKEN` must be configured on the worker.
+
+### Portable avatars
+
+Import a version 1 `.avatar.json` (maximum 256 KiB) in **Agents**, preview it and assign it to a profile. Map execution states to expressions/animations present in the file. Missing avatars use initials. Animation pauses when offscreen, when the tab is hidden and with reduced motion enabled.
+
+The framework-free `@bible-strong/avatar-core` and `@bible-strong/avatar-web` runtimes are pinned to 0.1.0. `npm run build:avatars` reproduces the committed browser bundle using esbuild and a precompiled schema validator, preserving the strict CSP without `unsafe-eval`. No Studio, React, Vite or pnpm workspace is imported. Runtime licensing and source links are documented in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Existing installations need `supabase/migrations/20261008102118_mission_orchestration.sql`; it has already been applied to the connected Lew Supabase project. New installations can use the complete `supabase/schema.sql`. Run `npm ci`, `npm run build:avatars`, `npm run check` and `npm test` after switching to this branch.
+
+### Lew OS routing and built-in team
+
+The default team now includes four animated portable avatars: Atlas (planning), Nova (development), Iris (review) and Pulse (validation). They ship with Lew and do not require an avatar import. Bootstrap upgrades legacy default profiles only once, preserving custom avatars and subsequent explicit removals. During a storage outage the built-in catalog remains viewable; editing and mission execution still require Supabase.
+
+Mission launch selects active profiles by role automatically, preferring the editable role defaults and using a stable fallback when a default is disabled. Explicit overrides remain available in advanced options. Assignment is deterministic and validated server-side; the selected team is snapshotted before execution. The approval screen uses editable task cards rather than raw JSON.
+
+Typography uses native system fonts on Apple devices and a locally hosted Inter Variable 4.1 fallback on Windows/Linux. The font license is included under `public/fonts/INTER-LICENSE.txt`. Avatar lighting adds volume to the existing Avatar Lab procedural SVG projection; animation follows execution states and pauses offscreen, in hidden tabs and with reduced motion.
+
+Each role has a distinct idle expression pool, work animation, timing and independent blink clock. The 23 BetchApp animations are converted to the portable Avatar Lab format, including sleep, waking, listening, curiosity and celebration. Eye micro-saccades and gentle body drift keep idle agents alive; polling preserves the mounted controller rather than restarting it before a blink.
+
+Role contracts in `agent-instructions.mjs` are included in actual Codex turns: Atlas inspects and plans, Nova implements and reports evidence, Iris reviews the exact revision, and Pulse runs independent verification. Existing default instructions upgrade only when they still match the original preset. Custom instructions and imported avatars are preserved; active missions retain their snapshotted profiles. Bundled avatar definitions refresh on the next server initialization. Control surfaces share a consistent SVG icon grid instead of font symbols.

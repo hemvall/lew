@@ -15,5 +15,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - run: npm run build:avatars
+      - run: git diff --exit-code -- public/vendor
       - run: npm run check
       - run: npm test
