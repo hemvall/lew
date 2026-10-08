@@ -128,3 +128,9 @@ The conversation receives responses and command outputs over cursor-based authen
 Open a PR from its project or Delivery tab to read its description, checks, line-numbered file diffs and discussion/review comments. Binary files and patches missing from the API are labeled explicitly. Partial GitHub permissions produce an incomplete state rather than an assumed success. Comments are readable in Lew; writing them remains on GitHub.
 
 For private repos, the token needs Metadata/Contents/Pull requests read access, plus Checks and Commit statuses read access for CI. Publishing PRs needs Pull requests write access. A narrowly scoped token only lists the repos it can access.
+
+## Codex subscription usage
+
+After signing in, the desktop widget displays the account plan, quota windows, percentage used/remaining, server-provided reset dates and available earned resets. **View my usage** opens all available quota buckets, credit information, account activity and workspace notices. **Continue to my projects** closes the account dialog and opens the project library.
+
+Data comes from Codex App Server (`account/read`, `account/rateLimits/read`, `account/usage/read`, `account/workspaceMessages/read`). Reads are cached for 45 seconds and refreshed by the browser every minute; the refresh button requests a new reading. Missing metrics and unsupported methods are explicitly marked unavailable, rather than rendered as zero. Reset dates use the browser's local timezone. Earned resets are displayed without automatically consuming credits.
