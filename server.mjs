@@ -6,6 +6,7 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { Codex } from './codex.mjs';
+import { snapshot, commitSelected, publish, pullRequestStatus } from './delivery.mjs';
 const exec = promisify(execFile), root = resolve(process.env.LEW_DATA_DIR || '.lew');
 mkdirSync(root, { recursive: true });
 if(configured) await query("UPDATE workspaces SET status='interrupted' WHERE status IN ('running','waiting')");
@@ -90,6 +91,8 @@ async function api(req, path) {
     if(!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error('Utilisez owner/repo');
     await query('INSERT INTO projects VALUES(?,?,?,?)',id,name,repo,String(b.context||'').slice(0,10000)); return {id};
   }
+  const contextMatch=path.match(/^\/api\/projects\/([^/]+)\/context$/);
+  if(contextMatch&&req.method==='POST'){const b=await body(req);if(typeof b.context!=='string'||b.context.length>10000)throw new Error('Contexte trop long');await query('UPDATE projects SET context=? WHERE id=?',b.context,contextMatch[1]);return {ok:true};}
   const match=path.match(/^\/api\/projects\/([^/]+)\/github$/);
   if(match && req.method==='GET') {
     const p=await one('SELECT * FROM projects WHERE id=?',match[1]); if(!p) throw new Error('Projet introuvable');
@@ -109,9 +112,19 @@ async function api(req, path) {
       await event(id,'system',{text:'Espace de travail prêt. Branche isolée créée.'}); return {id};
     } finally {locks.delete(p.id);}
   }
-  const m=path.match(/^\/api\/workspaces\/([^/]+)\/(events|diff|message|interrupt|approval)$/);
+  const m=path.match(/^\/api\/workspaces\/([^/]+)\/(events|diff|message|interrupt|approval|delivery|commit|publish|pr)$/);
   if(m) {
     const w=await workspace(m[1]), action=m[2];
+    if(req.method==='GET'&&action==='delivery') return snapshot(w.cwd);
+    if(req.method==='GET'&&action==='pr'){const p=await one('SELECT * FROM projects WHERE id=?',w.project_id);return pullRequestStatus(p.repo,w.branch);}
+    if(req.method==='POST'&&['commit','publish'].includes(action)){
+      if(locks.has(w.id)||['running','waiting'].includes(w.status))throw new Error('Interrompez ou terminez l’agent avant de livrer cette tâche.');
+      locks.add(w.id);
+      try{const b=await body(req);if(action==='commit'){const sha=await commitSelected(w.cwd,b,w.branch);await event(w.id,'delivery',{text:'Commit créé',sha});return {sha};}
+        const p=await one('SELECT * FROM projects WHERE id=?',w.project_id);
+        const result=await publish(w.cwd,p.repo,w.branch,b);await event(w.id,'delivery',{text:'Pull request publiée',...result});return result;
+      }finally{locks.delete(w.id);}
+    }
     if(req.method==='GET'&&action==='events') return await all('SELECT * FROM events WHERE workspace_id=? ORDER BY id',w.id);
     if(req.method==='GET'&&action==='diff') return {diff:await git(w.cwd,['diff','HEAD']),status:await git(w.cwd,['status','--short']),branch:await git(w.cwd,['branch','--show-current'])};
     if(req.method==='POST'&&action==='message') {
