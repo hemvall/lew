@@ -1,0 +1,13 @@
+create schema if not exists lew;
+revoke all on schema lew from public, anon, authenticated;
+create table lew.projects(id uuid primary key, name text not null, repo text not null, context text not null default '');
+create table lew.workspaces(id uuid primary key, project_id uuid not null references lew.projects(id), title text not null, branch text not null, cwd text not null, thread_id text, status text not null check(status in ('idle','running','waiting','completed','interrupted','failed')));
+create table lew.events(id bigint generated always as identity primary key, workspace_id uuid not null references lew.workspaces(id), kind text not null, data jsonb not null, created timestamptz not null default now());
+create index lew_events_workspace_idx on lew.events(workspace_id,id);
+create index lew_workspaces_project_idx on lew.workspaces(project_id);
+alter table lew.projects enable row level security;
+alter table lew.workspaces enable row level security;
+alter table lew.events enable row level security;
+revoke all on all tables in schema lew from public, anon, authenticated;
+revoke all on all sequences in schema lew from public, anon, authenticated;
+comment on schema lew is 'Private server-side data for lew; not exposed through the Data API.';
