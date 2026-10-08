@@ -134,3 +134,21 @@ For private repos, the token needs Metadata/Contents/Pull requests read access, 
 After signing in, the desktop widget displays the account plan, quota windows, percentage used/remaining, server-provided reset dates and available earned resets. **View my usage** opens all available quota buckets, credit information, account activity and workspace notices. **Continue to my projects** closes the account dialog and opens the project library.
 
 Data comes from Codex App Server (`account/read`, `account/rateLimits/read`, `account/usage/read`, `account/workspaceMessages/read`). Reads are cached for 45 seconds and refreshed by the browser every minute; the refresh button requests a new reading. Missing metrics and unsupported methods are explicitly marked unavailable, rather than rendered as zero. Reset dates use the browser's local timezone. Earned resets are displayed without automatically consuming credits.
+
+## Agents and missions (issue #6)
+
+Open **Agents** to edit, duplicate or deactivate the four default profiles. A profile controls the actual Codex model/effort, sandbox and approval policy; the model list comes from the local worker. Project constraints take precedence over profile instructions. Every mission snapshots its profiles and avatars, so later edits do not change an ongoing execution.
+
+Open **Missions**, choose a project and base branch, then describe the objective and acceptance criteria. Codex proposes a structured plan in a read-only worktree. Edit and approve the plan before development starts. This first version supports a sequential chain of up to twelve tasks, one explicit Git parent per task and one mission agent at a time. Each task gets its own development branch. Review and validation use separate worktrees pinned to the resulting commit. Changes invalidate review; validation must have observed successful tool commands and leave its tracked source revision unchanged. Correction rounds, retry attempts and the overall duration are bounded.
+
+Pause lets the active agent finish and checkpoints its result before launching another agent. Interrupt stops the current turn. Cancel retains history and worktrees. Restart recovery marks active missions interrupted; it never silently repeats a command or publishes a PR. Resume is explicit, with completed tasks preserved. Questions and shell/file approvals remain in the individual conversation; plan and delivery decisions also appear in **À traiter**.
+
+After successful review and validation, **Publier une PR brouillon** pushes the final task branch and creates or reuses its draft PR. Publication is a human action; Lew never merges the PR automatically. A changed revision must be reviewed again. Git identity, push access and `GITHUB_TOKEN` must be configured on the worker.
+
+### Portable avatars
+
+Import a version 1 `.avatar.json` (maximum 256 KiB) in **Agents**, preview it and assign it to a profile. Map execution states to expressions/animations present in the file. Missing avatars use initials. Animation pauses when offscreen, when the tab is hidden and with reduced motion enabled.
+
+The framework-free `@bible-strong/avatar-core` and `@bible-strong/avatar-web` runtimes are pinned to 0.1.0. `npm run build:avatars` reproduces the committed browser bundle using esbuild and a precompiled schema validator, preserving the strict CSP without `unsafe-eval`. No Studio, React, Vite or pnpm workspace is imported. Runtime licensing and source links are documented in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Existing installations need `supabase/migrations/20261008102118_mission_orchestration.sql`; it has already been applied to the connected Lew Supabase project. New installations can use the complete `supabase/schema.sql`. Run `npm ci`, `npm run build:avatars`, `npm run check` and `npm test` after switching to this branch.

@@ -1,3 +1,4 @@
+import { missionRoutes } from './mission-routes.mjs';
 import http from 'node:http';
 import { configured, query, all, one, closeStorage, initializeStorage, storageState } from './storage.mjs';
 import { mkdirSync, readFileSync, existsSync } from 'node:fs';
@@ -50,7 +51,7 @@ async function worker(w) {
     workers.set(w.id,c); return c;
   } catch(e) { c.close(); throw new Error(`Codex indisponible : ${e.message}. Installez Codex et connectez votre compte sur le worker.`); }
 }
-async function body(req) { let s=''; for await (const part of req) { s += part; if(s.length>100000) throw new Error('Requête trop longue'); } return JSON.parse(s || '{}'); }
+async function body(req) { let s=''; for await (const part of req) { s += part; if(Buffer.byteLength(s)>600000) throw new Error('Requête trop longue'); } return JSON.parse(s || '{}'); }
 function text(value, max=200) { if(typeof value !== 'string' || !value.trim() || value.length>max) throw new Error('Champ invalide'); return value.trim(); }
 let usageCache=null,usagePromise;
 let authClient, authPromise, authNotice = null, pendingLogin = null;
@@ -68,8 +69,10 @@ async function authWorker() {
   })();
   try {return await authPromise;} finally {authPromise=null;}
 }
+const missions=missionRoutes({root,query,all,one,body,authWorker,event,workers,approvals});
 async function codexAvailable(){try{const command=codexCommand();await exec(command.file,[...command.args,'--version'],{timeout:5000});return true;}catch{return false;}}
 async function api(req, path, params=new URLSearchParams()) {
+  const missionResult=await missions.route(req,path);if(missionResult!==null)return missionResult;
   if(path==='/api/auth/usage'&&req.method==='GET'){
     if(params.get('refresh')!=='1'&&usageCache&&Date.now()-usageCache.at<45000)return usageCache.data;
     if(!usagePromise)usagePromise=(async()=>{
@@ -101,7 +104,7 @@ async function api(req, path, params=new URLSearchParams()) {
     await initializeStorage();
     let projects=[],workspaces=[];
     if(storageState().ready) {
-      try {[projects,workspaces]=await Promise.all([all('SELECT * FROM projects'),all('SELECT * FROM workspaces')]);}
+      try {[projects,workspaces]=await Promise.all([all('SELECT * FROM projects'),all("SELECT w.*,e.data->'profile' AS agent_profile FROM workspaces w LEFT JOIN mission_executions e ON e.workspace_id=w.id")]);}
       catch { /* Report storage health while keeping the desktop reachable. */ }
     }
     return {projects,workspaces,storage:storageState(),worker:{available:await codexAvailable()},authenticatedRemote:!!process.env.LEW_ACCESS_TOKEN};
@@ -151,6 +154,8 @@ async function api(req, path, params=new URLSearchParams()) {
   const m=path.match(/^\/api\/workspaces\/([^/]+)\/(events|diff|message|interrupt|approval|delivery|commit|publish|pr)$/);
   if(m) {
     const w=await workspace(m[1]), action=m[2];
+    const managed=await one('SELECT m.data FROM mission_executions e JOIN missions m ON m.id=e.mission_id WHERE e.workspace_id=?',w.id);
+    if(managed&&req.method==='POST'&&['message','commit','publish'].includes(action))throw new Error('Cet espace appartient à une mission. Utilisez les actions de la mission.');
     if(req.method==='GET'&&action==='delivery') return snapshot(w.cwd);
     if(req.method==='GET'&&action==='pr'){const p=await one('SELECT * FROM projects WHERE id=?',w.project_id);return pullRequestStatus(p.repo,w.branch);}
     if(req.method==='POST'&&['commit','publish'].includes(action)){
@@ -209,10 +214,10 @@ const server=http.createServer(async(req,res)=>{
       const result=await api(req,url.pathname,url.searchParams);res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(result)); }
     catch(e){res.writeHead(400,{'Content-Type':'application/json'});res.end(JSON.stringify({error:e.message}));}return;
   }
-  const allowed={'/':'index.html','/app.js':'app.js','/workspace-model.js':'workspace-model.js','/style.css':'style.css','/manifest.json':'manifest.json','/icon.svg':'icon.svg','/wallpaper.svg':'wallpaper.svg'};
+  const allowed={'/':'index.html','/app.js':'app.js','/workspace-model.js':'workspace-model.js','/style.css':'style.css','/manifest.json':'manifest.json','/icon.svg':'icon.svg','/wallpaper.svg':'wallpaper.svg','/mission-ui.js':'mission-ui.js','/avatar-view.js':'avatar-view.js','/vendor/avatar-runtime.js':'vendor/avatar-runtime.js','/vendor/AVATAR-LICENSE.txt':'vendor/AVATAR-LICENSE.txt','/vendor/AJV-LICENSE.txt':'vendor/AJV-LICENSE.txt'};
   if(!allowed[url.pathname]) {res.writeHead(404);return res.end();}
   res.setHeader('Content-Security-Policy',"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'");
-  res.setHeader('Content-Type',url.pathname.endsWith('.js')?'text/javascript':url.pathname.endsWith('.css')?'text/css':url.pathname.endsWith('.svg')?'image/svg+xml':url.pathname.endsWith('.json')?'application/json':'text/html');
+  res.setHeader('Content-Type',url.pathname.endsWith('.txt')?'text/plain':url.pathname.endsWith('.js')?'text/javascript':url.pathname.endsWith('.css')?'text/css':url.pathname.endsWith('.svg')?'image/svg+xml':url.pathname.endsWith('.json')?'application/json':'text/html');
   res.end(readFileSync(new URL(`./public/${allowed[url.pathname]}`,import.meta.url)));
 });
 const host=process.env.LEW_HOST||'127.0.0.1';
