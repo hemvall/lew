@@ -112,3 +112,19 @@ Test-NetConnection POOLER_HOST -Port 5432
 ```
 
 If `TcpTestSucceeded` is false, check the network, VPN, and firewall. Run `start-local.cmd` again after any `.env` change. Do not disable TLS verification; use `SUPABASE_CA_FILE` if a certificate is required.
+
+## GitHub library and workspace contexts
+
+**Import from GitHub** lists public repos belonging to `GITHUB_USER` (hemvall by default). With `GITHUB_TOKEN`, it lists repos accessible to that token, including private ones. Search filters the loaded catalog; **Load more** continues pagination. Importing an already connected repo opens the existing project. Cloning happens when creating the first task and uses the PC's Git credentials.
+
+Favorites and recently opened projects are stored in Supabase. Fresh installations use `supabase/schema.sql`. Existing Lew databases need `supabase/migrations/20261008094517_lew_project_preferences.sql`, already applied to the Lew Supabase project used here.
+
+**Switch context** (Ctrl/Cmd J) searches projects, branches and conversations. Project and Branch/workspace selectors resume existing worktrees. Creating a task from a branch creates a new isolated workspace; resuming a conversation never checks out a branch in another workspace. Drafts stay separate by conversation within the browser session.
+
+## Conversation and PR review
+
+The conversation receives responses and command outputs over cursor-based authenticated SSE, with reconnect and periodic polling fallback. Commands, exit codes, file changes, plans and approvals appear in the timeline. Resolved approvals, including requests lost after a worker restart, can no longer be accepted in the UI.
+
+Open a PR from its project or Delivery tab to read its description, checks, line-numbered file diffs and discussion/review comments. Binary files and patches missing from the API are labeled explicitly. Partial GitHub permissions produce an incomplete state rather than an assumed success. Comments are readable in Lew; writing them remains on GitHub.
+
+For private repos, the token needs Metadata/Contents/Pull requests read access, plus Checks and Commit statuses read access for CI. Publishing PRs needs Pull requests write access. A narrowly scoped token only lists the repos it can access.
