@@ -157,6 +157,14 @@ Conversation and mission URLs keep their selection after reload and support brow
 
 Composer drafts are saved separately for each conversation in this browser and restored after reload. A failed submission keeps the draft; a successful submission clears it. The composer reports when browser storage is unavailable. Drafts are local to the device; the resume context comes from the durable conversation history.
 
+### Reviewing changes
+
+Agent responses and GitHub PR descriptions/comments render a safe Markdown subset (headings, lists, emphasis, links and fenced code). Raw HTML is escaped and links accept only HTTP(S); embedded images are not loaded.
+
+Local review and the commit dialog show numbered diffs for tracked changes and new text files. Sensitive `.env` content is hidden; binaries, symbolic links, unsupported encodings and oversized previews are labeled explicitly. Previews are bounded to 256 KiB per file and 1 MiB in total. Stale fingerprint checks still reject changes made after review.
+
+Commit and publication dialogs display command results observed in the latest recorded execution, including failures and unknown results. PR descriptions include those results and distinguish them from the agent's reported summary. Recorded command success does not certify later file changes.
+
 ### Portable avatars
 
 Import a version 1 `.avatar.json` (maximum 256 KiB) in **Agents**, preview it and assign it to a profile. Map execution states to expressions/animations present in the file. Missing avatars use initials. Animation pauses when offscreen, when the tab is hidden and with reduced motion enabled.

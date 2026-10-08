@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
 import { readFile, lstat, readlink } from 'node:fs/promises';
 import { join } from 'node:path';
+import { diffPreviews } from './diff-preview.mjs';
 const exec=promisify(execFile);
 export async function git(cwd,args){return (await exec('git',args,{cwd,timeout:120000,maxBuffer:8e6})).stdout;}
 export async function github(repo,path='',options={}){
@@ -12,7 +13,7 @@ export async function github(repo,path='',options={}){
   return result.json();
 }
 export async function snapshot(cwd){
-  const [tracked,untracked,head,branch,diff]=await Promise.all([git(cwd,['diff','--name-only','HEAD','-z']),git(cwd,['ls-files','--others','--exclude-standard','-z']),git(cwd,['rev-parse','HEAD']),git(cwd,['branch','--show-current']),git(cwd,['diff','HEAD'])]);
+  const [tracked,untracked,head,branch]=await Promise.all([git(cwd,['diff','--name-only','HEAD','-z']),git(cwd,['ls-files','--others','--exclude-standard','-z']),git(cwd,['rev-parse','HEAD']),git(cwd,['branch','--show-current'])]);
   const paths=[...new Set((tracked+untracked).split('\0').filter(Boolean))].sort();
   const hash=createHash('sha256').update(head).update(branch);const files=[];
   for(const path of paths){hash.update('\0'+path+'\0');let state='modified',size=0;
@@ -21,7 +22,8 @@ export async function snapshot(cwd){
     }catch(e){if(e.code!=='ENOENT')throw e;state='deleted';hash.update('deleted');}
     files.push({path,state:untracked.split('\0').includes(path)?'new':state,size,selectable:!/(^|\/)\.env($|\.(?!example$))/.test(path)});
   }
-  return {fingerprint:hash.digest('hex'),head:head.trim(),branch:branch.trim(),diff,files};
+  const previews=await diffPreviews(cwd,files,git);
+  return {fingerprint:hash.digest('hex'),head:head.trim(),branch:branch.trim(),diff:previews.map(f=>f.patch).filter(Boolean).join('\n'),files:previews};
 }
 export async function commitSelected(cwd,{fingerprint,files,message},expectedBranch){
   const current=await snapshot(cwd);
