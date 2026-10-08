@@ -1,0 +1,15 @@
+const number=value=>typeof value==='number'&&Number.isFinite(value)&&value>=0?value:null;
+function window(value){if(!value)return null;const used=number(value.usedPercent);return {usedPercent:used,remainingPercent:used===null?null:Math.max(0,100-used),durationMins:number(value.windowDurationMins),resetsAt:number(value.resetsAt)};}
+export function normalizeUsage(account,limits,activity,messages,errors=[]){
+  const buckets=limits?.rateLimitsByLimitId?Object.entries(limits.rateLimitsByLimitId).map(([key,b])=>({key,...b})):limits?.rateLimits?[{key:limits.rateLimits.limitId||'codex',...limits.rateLimits}]:[];
+  const reset=limits?.rateLimitResetCredits;const credits=buckets.find(b=>b.credits)?.credits;
+  return {account:account?{type:account.type,email:account.email||null,planType:account.planType||buckets.find(b=>b.planType)?.planType||null}:null,limits:buckets.map(b=>({id:b.limitId||b.key,name:b.limitName||b.limitId||b.key,planType:b.planType||null,primary:window(b.primary),secondary:window(b.secondary),reached:b.rateLimitReachedType||null,model:b.normalModelSlug||null,spendReached:typeof b.spendControlReached==='boolean'?b.spendControlReached:null,individualLimit:b.individualLimit?{limit:b.individualLimit.limit,used:b.individualLimit.used,remainingPercent:number(b.individualLimit.remainingPercent),resetsAt:number(b.individualLimit.resetsAt)}:null})),resetCredits:reset?{availableCount:number(reset.availableCount),details:Array.isArray(reset.credits)?reset.credits.map(c=>({id:c.id,title:c.title||'Reset de limite',description:c.description||'',status:c.status,expiresAt:number(c.expiresAt)})):null}:null,credits:credits?{hasCredits:typeof credits.hasCredits==='boolean'?credits.hasCredits:null,unlimited:typeof credits.unlimited==='boolean'?credits.unlimited:null,balance:credits.balance??null}:null,activity:activity?{summary:Object.fromEntries(['lifetimeTokens','peakDailyTokens','longestRunningTurnSec','currentStreakDays','longestStreakDays'].map(k=>[k,number(activity.summary?.[k])])),daily:Array.isArray(activity.dailyUsageBuckets)?activity.dailyUsageBuckets.filter(b=>/^\d{4}-\d{2}-\d{2}$/.test(b.startDate)&&number(b.tokens)!==null).map(b=>({date:b.startDate,tokens:b.tokens})):null}:null,messages:Array.isArray(messages?.messages)?messages.messages.map(m=>({body:m.messageBody||'',type:m.messageType})):[],errors,updatedAt:new Date().toISOString()};
+}
+export async function readUsage(client){
+  const result=await client.request('account/read',{refreshToken:false});
+  if(!result.account)return {...normalizeUsage(null,null,null,null),available:true};
+  const calls=[['limits','account/rateLimits/read'],['activity','account/usage/read'],['messages','account/workspaceMessages/read']];
+  const results=await Promise.allSettled(calls.map(([,method])=>client.request(method,{})));const values={},errors=[];
+  results.forEach((r,i)=>{if(r.status==='fulfilled')values[calls[i][0]]=r.value;else errors.push({section:calls[i][0],message:'Information non disponible avec ce compte ou cette version de Codex.'});});
+  return {...normalizeUsage(result.account,values.limits,values.activity,values.messages,errors),available:true};
+}

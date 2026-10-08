@@ -8,6 +8,7 @@ import { promisify } from 'node:util';
 import { Codex } from './codex.mjs';
 import { codexCommand } from './codex-command.mjs';
 import { snapshot, commitSelected, publish, pullRequestStatus, github as repoRequest } from './delivery.mjs';
+import { readUsage } from './codex-usage.mjs';
 import { streamEvents, eventCursor } from './event-stream.mjs';
 import { listRepositories, readPullRequest, normalizeRepo, validRepo, projectGithub } from './github-workspace.mjs';
 const exec = promisify(execFile), root = resolve(process.env.LEW_DATA_DIR || '.lew');
@@ -51,12 +52,14 @@ async function worker(w) {
 }
 async function body(req) { let s=''; for await (const part of req) { s += part; if(s.length>100000) throw new Error('Requête trop longue'); } return JSON.parse(s || '{}'); }
 function text(value, max=200) { if(typeof value !== 'string' || !value.trim() || value.length>max) throw new Error('Champ invalide'); return value.trim(); }
+let usageCache=null,usagePromise;
 let authClient, authPromise, authNotice = null, pendingLogin = null;
 async function authWorker() {
   if(authClient && !authClient.dead) return authClient;
   if(authPromise) return authPromise;
   authPromise = (async()=>{
     const c=new Codex(m=>{
+      if(['account/updated','account/rateLimits/updated','account/login/completed'].includes(m.method))usageCache=null;
       if(m.method==='account/login/completed') {authNotice=m.params;pendingLogin=null;}
       if(m.method==='lew/workerError') authClient=null;
       if(m.id!==undefined && m.method) c.send({id:m.id,error:{code:-32601,message:'Interaction non prise en charge'}});
@@ -67,6 +70,14 @@ async function authWorker() {
 }
 async function codexAvailable(){try{const command=codexCommand();await exec(command.file,[...command.args,'--version'],{timeout:5000});return true;}catch{return false;}}
 async function api(req, path, params=new URLSearchParams()) {
+  if(path==='/api/auth/usage'&&req.method==='GET'){
+    if(params.get('refresh')!=='1'&&usageCache&&Date.now()-usageCache.at<45000)return usageCache.data;
+    if(!usagePromise)usagePromise=(async()=>{
+      let data;try{data=await readUsage(await authWorker());}catch{data={available:false,account:null,limits:[],errors:[{section:'account',message:'Codex est indisponible sur ce PC.'}],updatedAt:new Date().toISOString()};}
+      usageCache={at:Date.now(),data};return data;
+    })().finally(()=>{usagePromise=null;});
+    return usagePromise;
+  }
   if(path==='/api/auth/status' && req.method==='GET') {
     try {const c=await authWorker(); const info=await c.request('account/read',{refreshToken:false});return {...info,available:true,notice:authNotice,pendingLogin};}
     catch(e){return {available:false,account:null,error:e.message};}
@@ -84,7 +95,7 @@ async function api(req, path, params=new URLSearchParams()) {
   }
   if(path==='/api/auth/logout' && req.method==='POST') {
     if(configured && (await all("SELECT id FROM workspaces WHERE status IN ('running','waiting')")).length) throw new Error('Interrompez les tâches avant de vous déconnecter.');
-    await (await authWorker()).request('account/logout');for(const c of workers.values())c.close();workers.clear();authNotice=null;return {ok:true};
+    await (await authWorker()).request('account/logout');usageCache=null;for(const c of workers.values())c.close();workers.clear();authNotice=null;return {ok:true};
   }
   if(req.method==='GET' && path==='/api/state') {
     await initializeStorage();
