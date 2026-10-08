@@ -1,0 +1,19 @@
+[Unit]
+Description=lew workspace and Codex worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lew
+Group=lew
+WorkingDirectory=/opt/lew
+Environment=PATH=/opt/lew-tools/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/env node --env-file=/etc/lew/lew.env /opt/lew/server.mjs
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,4 @@
+# Replace with your own domain pointing at the VPS.
+lew.example.com {
+    reverse_proxy 127.0.0.1:3000
+}

@@ -5,11 +5,12 @@ Votre espace pour piloter des projets avec Codex, retrouver le contexte d’une 
 ## Première version
 
 - Interface responsive inspirée de macOS, thèmes clair et sombre, recherche rapide Cmd/Ctrl+K.
-- Projets GitHub avec leurs instructions, branches et PR ouvertes.
+- Projets GitHub avec leurs instructions modifiables, branches et PR ouvertes.
 - Une branche et un worktree isolé par tâche.
 - Conversations, événements et états persistés dans Supabase Postgres.
 - Adaptateur Codex App Server : création/reprise de thread, messages, interruption, demandes de validation.
 - Connexion au compte Codex par code d’appareil, compatible avec un worker distant et un téléphone.
+- Livraison : sélection des fichiers, commit, push sans force, création de PR en brouillon et suivi de CI.
 
 ## Démarrer
 
@@ -53,10 +54,32 @@ npm run check
 npm test
 ```
 
-Les tests contrôlent le handshake Codex, la connexion par code d’appareil, les événements et la gestion des pannes avec un processus simulé. Ils ne remplacent pas une exécution réelle sur votre worker ni un test de connexion à votre Postgres.
+Les tests contrôlent le protocole Codex avec un processus simulé, les erreurs et accès API, les commits sélectifs et la publication de PR réessayable avec de vrais repos Git temporaires et un transport GitHub simulé. Ils ne remplacent pas une exécution réelle sur votre worker ni un test de connexion à votre Postgres.
+
+## Livraison GitHub
+
+Dans une tâche, ouvrez **Livraison** dans l’inspecteur. Relisez les modifications, choisissez les fichiers et créez un commit. La revue est invalidée si les fichiers ont changé entre-temps. Les fichiers non suivis sont inclus dans la sélection ; le diff textuel actuel concerne les fichiers suivis.
+
+**Créer une PR** envoie les commits sur la branche de la tâche et ouvre une PR en brouillon par défaut. Une PR déjà ouverte pour cette branche est réutilisée. Les modifications locales non commitées restent sur le worker. La CI est relue avec **Actualiser** ; un accès incomplet aux contrôles est affiché explicitement. Le merge se fait pour l’instant sur GitHub.
+
+Configurez un token GitHub côté serveur avec accès au repo : Pull requests en écriture, Checks et Commit statuses en lecture. Configurez également le credential helper Git pour le push et l’identité de commit du compte lew. Le token API ne configure pas automatiquement les identifiants Git.
+
+## Installation sur un VPS
+
+Les fichiers dans `deploy/` préparent une installation Linux avec systemd et HTTPS via Caddy. Ils ne provisionnent pas de serveur.
+
+1. Installez Node 22+, npm, Git et Caddy sur le serveur.
+2. Depuis un checkout de lew, lancez `sudo bash deploy/install.sh`. Le script crée un utilisateur lew et installe Codex 0.159.2.
+3. Configurez `/etc/lew/lew.env` : connexion Supabase, un long `LEW_ACCESS_TOKEN`, puis éventuellement `GITHUB_TOKEN`.
+4. Configurez l’identité et les identifiants Git pour l’utilisateur lew.
+5. Configurez votre domaine dans `deploy/Caddyfile`, pointez-le vers le serveur et rechargez Caddy.
+6. Lancez `sudo systemctl enable --now lew` puis consultez `sudo journalctl -u lew -f` si nécessaire.
+7. Ouvrez votre domaine, entrez le code d’accès lew et connectez Codex par code d’appareil.
+
+Le service tourne sous l’utilisateur lew. Les worktrees et les données Codex doivent rester sur un disque persistant. Le script ne remplace pas votre configuration existante et ne démarre pas le service avant que vous ayez renseigné la connexion.
 
 ## Prochaines étapes
 
-Création de PR depuis l’interface, affichage de CI, édition du contexte, pagination des événements, reprise idempotente des commandes et variantes de conversations/branches. L’interface actuelle affiche les PR existantes et les diffs des fichiers suivis ; elle ne crée ni ne merge les PR.
+Pagination des événements, reprise idempotente des commandes, résumés de conversations et variantes sur une nouvelle branche. Une exécution réelle complète et la connexion Postgres du worker cible restent à valider après installation.
 
 Voir les documents dans `docs/` pour le parcours cible et la direction visuelle.
