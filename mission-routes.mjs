@@ -1,4 +1,5 @@
 import { builtinAvatars,builtinProfiles,routeProfiles } from './agent-catalog.mjs';
+import { legacyInstructions } from './agent-instructions.mjs';
 import { randomUUID } from 'node:crypto';
 import { defaults,validateProfile,importAvatar,validateMapping } from './agents.mjs';
 import { MissionEngine } from './missions.mjs';
@@ -15,9 +16,11 @@ export function missionRoutes(deps){
   const adapter=new MissionAdapter(deps),engine=new MissionEngine(store,adapter);
   let seedPromise;
   async function ready(){await engine.recover();if(!seedPromise)seedPromise=(async()=>{
-    for(const a of builtinAvatars)await query('INSERT INTO avatars(id,name,definition) VALUES(?,?,?) ON CONFLICT(id) DO NOTHING',a.id,a.name,JSON.stringify(a.definition));
+    for(const a of builtinAvatars)await query('INSERT INTO avatars(id,name,definition) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET definition=excluded.definition',a.id,a.name,JSON.stringify(a.definition));
     for(const p of builtinProfiles){await query('INSERT INTO agents(id,template_key,name,description,role,instructions,config,mapping,avatar_id) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(template_key) DO NOTHING',randomUUID(),p.role,p.name,p.description,p.role,p.instructions,JSON.stringify(p.config),JSON.stringify(p.mapping),p.avatar_id);
       await query("UPDATE agents SET avatar_id=COALESCE(avatar_id,?),mapping=CASE WHEN mapping='{}'::jsonb THEN ?::jsonb ELSE mapping END,config=config || '{\"avatarDefaultHandled\":true}'::jsonb WHERE template_key=? AND NOT COALESCE((config->>'avatarDefaultHandled')::boolean,false)",p.avatar_id,JSON.stringify(p.mapping),p.role);
+      await query('UPDATE agents SET instructions=?,updated=now() WHERE template_key=? AND instructions=?',p.instructions,p.role,legacyInstructions[p.role]);
+      if(p.role==='validation')await query("UPDATE agents SET mapping=jsonb_set(mapping,'{running}',?::jsonb),updated=now() WHERE template_key=? AND avatar_id=? AND mapping->'running'=?::jsonb",JSON.stringify(p.mapping.running),p.role,p.avatar_id,JSON.stringify({kind:'animation',key:'working'}));
     }
   })().catch(e=>{seedPromise=null;throw e;});await seedPromise;}
   async function models(){try{let data=[],cursor;do{const page=await (await authWorker()).request('model/list',{limit:100,includeHidden:false,...(cursor?{cursor}:{})});data.push(...page.data);cursor=page.nextCursor;}while(cursor&&data.length<500);return data;}catch{return [];}}

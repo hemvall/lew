@@ -1,3 +1,4 @@
+import { roleInstructions } from './agent-instructions.mjs';
 import { parseAvatarDefinition } from '@bible-strong/avatar-core';
 export const roles=['orchestrator','developer','reviewer','validation','custom'];
 export const agentStates=['idle','running','awaiting_approval','blocked','completed','error'];
@@ -6,7 +7,7 @@ export const defaults=[
   ['developer','Développeur','Implémenter la tâche approuvée et exécuter les vérifications pertinentes. Décrire les limites et les fichiers modifiés.','workspace-write'],
   ['reviewer','Relecteur','Relire le diff exact fourni. Signaler uniquement les défauts concrets avec fichier, gravité et correction attendue. Ne modifier aucun fichier.','read-only'],
   ['validation','Validation','Vérifier les critères de réussite et exécuter les tests dans cet espace isolé. Ne pas modifier les sources.','workspace-write']
-].map(([role,name,instructions,sandbox])=>({role,name,instructions,description:'Profil par défaut modifiable',active:true,config:{sandbox,approvalPolicy:'on-request',model:null,effort:null,allowCommit:role==='developer',allowPublish:false},mapping:{}}));
+].map(([role,name,instructions,sandbox])=>({role,name,instructions:roleInstructions[role],description:'Profil par défaut modifiable',active:true,config:{sandbox,approvalPolicy:'on-request',model:null,effort:null,allowCommit:role==='developer',allowPublish:false},mapping:{}}));
 function string(value,max,required=true){if(typeof value!=='string'||value.length>max||(required&&!value.trim()))throw new Error('Champ du profil invalide.');return value.trim();}
 export function validateProfile(input,models=[]){
   if(!roles.includes(input.role))throw new Error('Rôle invalide.');
