@@ -1,6 +1,6 @@
 {
   "name": "lew",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test test/*.test.mjs",
-    "check": "node --check server.mjs && node --check storage.mjs && node --check codex-command.mjs && node --check codex.mjs && node --check delivery.mjs && node --check public/app.js",
+    "check": "node --check server.mjs && node --check storage.mjs && node --check codex-command.mjs && node --check codex.mjs && node --check delivery.mjs && node --check github-workspace.mjs && node --check event-stream.mjs && node --check public/workspace-model.js && node --check public/app.js",
     "start:local": "node --env-file=.env server.mjs"
   },
   "dependencies": {

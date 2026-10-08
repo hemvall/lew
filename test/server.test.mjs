@@ -14,6 +14,7 @@ test('API access is gated and Supabase configuration never leaks to the browser'
     // The startup log exposes the assigned port for tests when PORT=0.
     const url=out.toString().match(/http:\/\/[^\s]+/)[0];
     assert.equal((await fetch(url+'/api/state')).status,401);
+    assert.equal((await fetch(url+'/api/workspaces/test/stream')).status,401);
     const response=await fetch(url+'/api/state',{headers:{Authorization:'Bearer test-only-access-token'}});
     assert.equal(response.status,200);const data=await response.json();assert.equal(data.storage.provider,'supabase');assert.equal(data.storage.configured,false);assert.equal('DATABASE_URL' in data,false);
     assert.equal((await fetch(url+'/.env')).status,404);

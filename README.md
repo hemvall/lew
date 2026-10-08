@@ -112,3 +112,19 @@ Test-NetConnection HOST_DU_POOLER -Port 5432
 ```
 
 Si `TcpTestSucceeded` est faux, vérifiez le réseau, le VPN et le pare-feu. Relancez `start-local.cmd` après toute modification de `.env`. Ne désactivez pas la vérification TLS ; utilisez `SUPABASE_CA_FILE` si le certificat est demandé.
+
+## Bibliothèque GitHub et contextes
+
+Le bouton **Importer depuis GitHub** liste les repos publics du compte `GITHUB_USER` (hemvall par défaut). Avec `GITHUB_TOKEN`, il liste les repos auxquels ce token a accès, y compris les privés. La recherche filtre les repos déjà chargés ; **Charger la suite** poursuit la pagination. Importer un repo déjà connecté ouvre son projet existant. Le clonage reste déclenché par la première tâche et utilise les identifiants Git du PC.
+
+Les étoiles et les derniers projets ouverts sont enregistrés dans Supabase. Pour une nouvelle installation, utilisez `supabase/schema.sql`. Pour une base Lew existante, appliquez la migration `supabase/migrations/20261008094517_lew_project_preferences.sql`. Cette migration est déjà appliquée au projet Supabase Lew utilisé ici.
+
+**Changer de contexte** (Ctrl/Cmd J) recherche un projet, une branche ou une conversation. Les listes Projet et Branche/espace permettent de reprendre un worktree existant. Créer une tâche depuis une branche produit toujours un nouvel espace isolé ; reprendre une conversation ne fait aucun checkout dans les autres espaces. Les brouillons restent séparés par conversation, pendant la session de navigateur.
+
+## Conversation et revue
+
+La conversation suit les réponses et sorties de commandes via un flux SSE avec reprise par identifiant d’événement, avec repli sur l’actualisation périodique si le flux est indisponible. Les commandes, codes de sortie, changements de fichiers, plans et validations sont affichés dans le fil. Une demande de validation résolue ou absente du worker ne peut plus être autorisée depuis l’interface.
+
+Ouvrez une PR depuis le projet ou l’onglet Livraison pour lire sa description, ses checks, ses fichiers avec numéros de lignes et ses discussions/revues. Les fichiers binaires et diffs absents de l’API sont signalés explicitement. Les droits GitHub partiels produisent un état incomplet, jamais un succès supposé. Les discussions sont consultables dans Lew ; leur rédaction reste sur GitHub.
+
+Pour les repos privés, le token nécessite Metadata/Contents/Pull requests en lecture, ainsi que Checks et Commit statuses en lecture pour les contrôles. La création de PR nécessite Pull requests en écriture. Un token à périmètre restreint ne liste que les repos autorisés.

@@ -7,25 +7,24 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { Codex } from './codex.mjs';
 import { codexCommand } from './codex-command.mjs';
-import { snapshot, commitSelected, publish, pullRequestStatus } from './delivery.mjs';
+import { snapshot, commitSelected, publish, pullRequestStatus, github as repoRequest } from './delivery.mjs';
+import { streamEvents, eventCursor } from './event-stream.mjs';
+import { listRepositories, readPullRequest, normalizeRepo, validRepo, projectGithub } from './github-workspace.mjs';
 const exec = promisify(execFile), root = resolve(process.env.LEW_DATA_DIR || '.lew');
 mkdirSync(root, { recursive: true });
 
-const workers = new Map(), locks = new Set(), approvals = new Map();
+const workers = new Map(), locks = new Set(), approvals = new Map(), streams=new Set();
 const event = async (id, kind, data) => query('INSERT INTO events(workspace_id,kind,data) VALUES(?,?,?)',id,kind,JSON.stringify(data));
 async function workspace(id) { const w = await one('SELECT * FROM workspaces WHERE id=?', id); if (!w) throw new Error('Espace introuvable'); return w; }
 async function status(id, value) { await query('UPDATE workspaces SET status=? WHERE id=?',value,id); }
 async function git(cwd, args) { return (await exec('git', args, { cwd, timeout: 120000, maxBuffer: 2e6 })).stdout; }
-async function github(repo, endpoint) {
-  const r = await fetch(`https://api.github.com/repos/${repo}/${endpoint}`, { headers: { Accept: 'application/vnd.github+json', ...(process.env.GITHUB_TOKEN ? {Authorization: `Bearer ${process.env.GITHUB_TOKEN}`} : {}) }, signal: AbortSignal.timeout(15000) });
-  if (!r.ok) throw new Error(`GitHub : HTTP ${r.status}`); return r.json();
-}
 async function worker(w) {
   if (workers.has(w.id)) return workers.get(w.id);
   let eventQueue=Promise.resolve();
   const c = new Codex(m => {
     const handle = async () => {
     await event(w.id,'codex',m);
+    if(m.method==='serverRequest/resolved')approvals.delete(`${w.id}:${m.params.requestId}`);
     if (m.method === 'turn/completed') { for(const key of approvals.keys()) if(key.startsWith(w.id+':')) approvals.delete(key); }
     if (m.method === 'turn/completed') await status(w.id, m.params.turn.status === 'completed' ? 'completed' : m.params.turn.status === 'interrupted' ? 'interrupted' : 'failed');
     if (m.method === 'lew/workerError') {
@@ -67,7 +66,7 @@ async function authWorker() {
   try {return await authPromise;} finally {authPromise=null;}
 }
 async function codexAvailable(){try{const command=codexCommand();await exec(command.file,[...command.args,'--version'],{timeout:5000});return true;}catch{return false;}}
-async function api(req, path) {
+async function api(req, path, params=new URLSearchParams()) {
   if(path==='/api/auth/status' && req.method==='GET') {
     try {const c=await authWorker(); const info=await c.request('account/read',{refreshToken:false});return {...info,available:true,notice:authNotice,pendingLogin};}
     catch(e){return {available:false,account:null,error:e.message};}
@@ -96,18 +95,34 @@ async function api(req, path) {
     }
     return {projects,workspaces,storage:storageState(),worker:{available:await codexAvailable()},authenticatedRemote:!!process.env.LEW_ACCESS_TOKEN};
   }
+  if(req.method==='GET'&&path==='/api/github/repos')return listRepositories({page:params.get('page')||1,owner:params.get('owner')||process.env.GITHUB_USER||'hemvall'});
+  if(req.method==='POST'&&path==='/api/github/import'){
+    const b=await body(req),repo=validRepo(b.repo),key=`import:${repo.toLowerCase()}`;
+    if(locks.has(key))throw new Error('Import déjà en cours.');locks.add(key);
+    try {
+      const existing=await one('SELECT id FROM projects WHERE lower(repo)=lower(?)',repo);if(existing)return {...existing,existing:true};
+      const r=normalizeRepo(await repoRequest(repo,''));if(r.archived)throw new Error('Ce repo est archivé.');
+      const id=randomUUID();await query('INSERT INTO projects(id,name,repo,context,last_opened) VALUES(?,?,?,?,now())',id,r.name,r.repo,'');return {id};
+    }finally{locks.delete(key);}
+  }
+  const preference=path.match(/^\/api\/projects\/([^/]+)\/(favorite|visit)$/);
+  if(preference&&req.method==='POST'){
+    if(preference[2]==='favorite'){const b=await body(req);if(typeof b.favorite!=='boolean')throw new Error('Favori invalide.');await query('UPDATE projects SET favorite=? WHERE id=?',b.favorite,preference[1]);}
+    else await query('UPDATE projects SET last_opened=now() WHERE id=?',preference[1]);return {ok:true};
+  }
+  const review=path.match(/^\/api\/projects\/([^/]+)\/prs\/(\d+)$/);
+  if(review&&req.method==='GET'){const p=await one('SELECT * FROM projects WHERE id=?',review[1]);if(!p)throw new Error('Projet introuvable');return readPullRequest(p.repo,Number(review[2]));}
   if(req.method==='POST' && path==='/api/projects') {
     const b=await body(req), id=randomUUID(), name=text(b.name), repo=text(b.repo);
     if(!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error('Utilisez owner/repo');
-    await query('INSERT INTO projects VALUES(?,?,?,?)',id,name,repo,String(b.context||'').slice(0,10000)); return {id};
+    await query('INSERT INTO projects(id,name,repo,context) VALUES(?,?,?,?)',id,name,repo,String(b.context||'').slice(0,10000)); return {id};
   }
   const contextMatch=path.match(/^\/api\/projects\/([^/]+)\/context$/);
   if(contextMatch&&req.method==='POST'){const b=await body(req);if(typeof b.context!=='string'||b.context.length>10000)throw new Error('Contexte trop long');await query('UPDATE projects SET context=? WHERE id=?',b.context,contextMatch[1]);return {ok:true};}
   const match=path.match(/^\/api\/projects\/([^/]+)\/github$/);
   if(match && req.method==='GET') {
     const p=await one('SELECT * FROM projects WHERE id=?',match[1]); if(!p) throw new Error('Projet introuvable');
-    const [branches,prs]=await Promise.all([github(p.repo,'branches?per_page=100'),github(p.repo,'pulls?state=open&per_page=100')]);
-    return {branches:branches.map(x=>({name:x.name})),prs:prs.map(x=>({number:x.number,title:x.title,url:x.html_url,branch:x.head.ref,draft:x.draft}))};
+    return projectGithub(p.repo);
   }
   if(req.method==='POST' && path==='/api/workspaces') {
     const b=await body(req), p=await one('SELECT * FROM projects WHERE id=?',b.projectId); if(!p) throw new Error('Projet introuvable');
@@ -135,13 +150,14 @@ async function api(req, path) {
         const result=await publish(w.cwd,p.repo,w.branch,b);await event(w.id,'delivery',{text:'Pull request publiée',...result});return result;
       }finally{locks.delete(w.id);}
     }
-    if(req.method==='GET'&&action==='events') return await all('SELECT * FROM events WHERE workspace_id=? ORDER BY id',w.id);
+    if(req.method==='GET'&&action==='events') return {events:await all('SELECT * FROM events WHERE workspace_id=? ORDER BY id',w.id),pendingIds:[...approvals.keys()].filter(k=>k.startsWith(w.id+':')).map(k=>k.slice(w.id.length+1))};
     if(req.method==='GET'&&action==='diff') return {diff:await git(w.cwd,['diff','HEAD']),status:await git(w.cwd,['status','--short']),branch:await git(w.cwd,['branch','--show-current'])};
     if(req.method==='POST'&&action==='message') {
       const b=await body(req), message=text(b.message,20000);
       if(locks.has(w.id)||['running','waiting'].includes(w.status)) throw new Error('Cette tâche travaille déjà. Interrompez-la avant une nouvelle instruction.');
       locks.add(w.id);
       try {
+        if((await git(w.cwd,['branch','--show-current'])).trim()!==w.branch)throw new Error('La branche de cet espace a changé sur le PC. Rétablissez la branche attendue avant de lancer Codex.');
         const auth=await (await authWorker()).request('account/read',{refreshToken:false});
         if(auth.requiresOpenaiAuth && !auth.account) throw new Error('Connectez votre compte Codex avant de lancer une tâche.');
         const c=await worker(w), fresh=await workspace(w.id), p=await one('SELECT * FROM projects WHERE id=?',w.project_id);
@@ -157,7 +173,7 @@ async function api(req, path) {
     }
     if(req.method==='POST'&&action==='approval') {
       const b=await body(req), key=`${w.id}:${b.id}`, a=approvals.get(key), c=workers.get(w.id); if(!a||!c) throw new Error('Validation expirée');
-      approvals.delete(key);await status(w.id,'running');c.send({id:a.id,result:{decision:b.accept===true?'accept':'decline'}});await event(w.id,'approval',{id:a.id,accepted:b.accept===true});return {ok:true};
+      approvals.delete(key);if(![...approvals.keys()].some(k=>k.startsWith(w.id+':')))await status(w.id,'running');c.send({id:a.id,result:{decision:b.accept===true?'accept':'decline'}});await event(w.id,'approval',{id:a.id,accepted:b.accept===true});return {ok:true};
     }
   }
   throw new Error('Route inconnue');
@@ -172,10 +188,17 @@ const server=http.createServer(async(req,res)=>{
       const supplied=Buffer.from(req.headers.authorization?.replace(/^Bearer /,'')||''), actual=Buffer.from(process.env.LEW_ACCESS_TOKEN);
       if(supplied.length!==actual.length||!timingSafeEqual(supplied,actual)){res.writeHead(401,{'Content-Type':'application/json'});return res.end(JSON.stringify({error:'Connexion requise'}));}
     }
-    try { const result=await api(req,url.pathname);res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(result)); }
+    try {
+      const stream=url.pathname.match(/^\/api\/workspaces\/([^/]+)\/stream$/);
+      if(stream&&req.method==='GET'){
+        const w=await workspace(stream[1]),cursor=eventCursor(url.searchParams.get('after')||'0');
+        streams.add(res);res.once('close',()=>streams.delete(res));
+        streamEvents(res,async after=>({events:await all('SELECT * FROM events WHERE workspace_id=? AND id>? ORDER BY id LIMIT 500',w.id,after),pendingIds:[...approvals.keys()].filter(k=>k.startsWith(w.id+':')).map(k=>k.slice(w.id.length+1))}),cursor);return;
+      }
+      const result=await api(req,url.pathname,url.searchParams);res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(result)); }
     catch(e){res.writeHead(400,{'Content-Type':'application/json'});res.end(JSON.stringify({error:e.message}));}return;
   }
-  const allowed={'/':'index.html','/app.js':'app.js','/style.css':'style.css','/manifest.json':'manifest.json','/icon.svg':'icon.svg','/wallpaper.svg':'wallpaper.svg'};
+  const allowed={'/':'index.html','/app.js':'app.js','/workspace-model.js':'workspace-model.js','/style.css':'style.css','/manifest.json':'manifest.json','/icon.svg':'icon.svg','/wallpaper.svg':'wallpaper.svg'};
   if(!allowed[url.pathname]) {res.writeHead(404);return res.end();}
   res.setHeader('Content-Security-Policy',"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'");
   res.setHeader('Content-Type',url.pathname.endsWith('.js')?'text/javascript':url.pathname.endsWith('.css')?'text/css':url.pathname.endsWith('.svg')?'image/svg+xml':url.pathname.endsWith('.json')?'application/json':'text/html');
@@ -184,4 +207,4 @@ const server=http.createServer(async(req,res)=>{
 const host=process.env.LEW_HOST||'127.0.0.1';
 if(host!=='127.0.0.1'&&host!=='localhost'&&!process.env.LEW_ACCESS_TOKEN) throw new Error('LEW_ACCESS_TOKEN est requis pour une écoute distante');
 server.listen(Number(process.env.PORT||3000),host,()=>{console.log(`lew · http://${host}:${server.address().port}`);initializeStorage().then(s=>{if(s.error)console.warn(s.error);});});
-process.on('SIGTERM',()=>{authClient?.close();for(const c of workers.values())c.close();server.close(async()=>{await closeStorage();process.exit();});});
+process.on('SIGTERM',()=>{for(const res of streams)res.end();authClient?.close();for(const c of workers.values())c.close();server.close(async()=>{await closeStorage();process.exit();});});

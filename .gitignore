@@ -2,3 +2,5 @@ node_modules/
 .lew/
 .env
 *.log
+
+supabase/.temp/
