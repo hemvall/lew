@@ -1,10 +1,12 @@
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
+import { codexCommand } from './codex-command.mjs';
 
 export class Codex {
   constructor(onEvent, command = process.env.LEW_CODEX_BIN || 'codex') {
     this.pending = new Map(); this.next = 0; this.onEvent = onEvent;
-    this.process = spawn(command, ['app-server'], { stdio: ['pipe', 'pipe', 'pipe'] });
+    const executable=codexCommand(command);
+    this.process = spawn(executable.file, [...executable.args, 'app-server'], { stdio: ['pipe', 'pipe', 'pipe'] });
     this.process.stderr.on('data', () => {});
     createInterface({ input: this.process.stdout }).on('line', line => {
       let m; try { m = JSON.parse(line); } catch { return; }
