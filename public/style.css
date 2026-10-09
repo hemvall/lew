@@ -352,6 +352,7 @@ body[data-view="workspace"] .agent-plan summary{padding:4px 10px}
 .plan-panel{padding:24px;background:var(--panel);border-color:color-mix(in srgb,var(--accent) 25%,var(--border))}
 .plan-panel .section-head{gap:20px;align-items:flex-start;margin-bottom:18px;position:sticky;top:0;z-index:2;background:var(--panel);padding:12px 0;border-bottom:1px solid var(--border)}
 .plan-panel .section-head h2{font-size:22px;margin:0}.plan-panel .section-head .primary{flex-shrink:0}
+.plan-panel .section-head{top:44px}
 .plan-overview{border:1px solid var(--border);border-radius:12px;background:var(--bg);padding:16px 18px;color:var(--muted);font-size:13px;line-height:1.7;max-width:900px}.plan-overview p:last-child{margin-bottom:0}
 .plan-panel .plan-step{display:block;margin:12px 0;padding:0;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--bg)}
 .plan-task-heading{display:flex;gap:10px;align-items:center;padding:14px 16px;cursor:pointer;list-style:none;font-size:14px;font-weight:600}.plan-task-heading:after{content:'+';margin-left:auto;color:var(--muted)}.plan-step[open]>.plan-task-heading:after{content:'−'}
