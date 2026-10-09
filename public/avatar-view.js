@@ -1,4 +1,4 @@
-import { createAvatar } from './vendor/avatar-runtime.js';
+import { createBloubAvatar } from './vendor/avatar-runtime.js';
 let entries=[],observer,serial=0;const motion=matchMedia('(prefers-reduced-motion: reduce)');
 export function destroyAvatars(){observer?.disconnect();for(const e of entries){e.lighting?.disconnect();e.controller.destroy();}entries=[];}
 function apply(e){const {controller,mapping}=e;if(document.hidden||!e.visible||motion.matches){controller.pause();e.node.dataset.animating='false';return;}if(mapping?.kind==='animation'){const current=controller.getState();const result=current.status==='playing'&&current.activeAnimation===mapping.key?{ok:true}:controller.play(mapping.key);e.node.dataset.animating=String(result.ok);return;}else if(mapping?.kind==='expression')controller.setExpression(mapping.key);else controller.pause();e.node.dataset.animating=String(mapping?.kind==='animation');}
@@ -15,7 +15,7 @@ export function mountAvatars(root,profiles){
     // Polling replaces cards, but must not reset the avatar's blink clock.
     const existing=previous.find(e=>e.key===key&&!next.includes(e)&&(!e.node.isConnected||root.contains(e.node)));
     if(existing){if(existing.node!==node)node.replaceWith(existing.node);next.push(existing);continue;}
-    try{node.replaceChildren();const controller=createAvatar(node,{definition:p.avatar.definition,autoplay:false,size,ariaLabel:p.avatar.name});if(mapping?.kind==='expression')controller.setExpression(mapping.key);controller.pause();const e={key,node,controller,mapping,visible:false,lighting:lightAvatar(node,p.avatar.definition.colors.body)};next.push(e);observer.observe(node);}catch{node.textContent=p.name?.[0]||'•';node.dataset.avatarError='true';}
+    try{node.replaceChildren();const controller=createBloubAvatar(node,{definition:p.avatar.definition,size,ariaLabel:p.name,role:p.role,state});if(mapping?.kind==='expression')controller.setExpression(mapping.key);controller.pause();const e={key,node,controller,mapping:{kind:'animation',key:state},visible:false};next.push(e);observer.observe(node);}catch{node.textContent=p.name?.[0]||'•';node.dataset.avatarError='true';}
   }
   for(const e of previous)if(!next.includes(e)){observer.unobserve(e.node);e.lighting?.disconnect();e.controller.destroy();}
   entries=next;

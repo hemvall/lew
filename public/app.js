@@ -1,5 +1,5 @@
 import { icon } from './icons.js';
-import { watchMissionPlans } from './mission-notifications.js';
+import { watchMissionPlans } from './workspace-model.js';
 let agentCatalogPromise;
 import { mountAvatars } from './avatar-view.js';
 import { missionUI,stopMissionUI } from './mission-ui.js';
