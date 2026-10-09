@@ -1,6 +1,7 @@
 // Normalize durable app-server events without depending on the DOM.
 export function conversation(events,{pendingIds=[]}={}){
-  const messages=[],items=new Map(),requests=new Map(),pending=new Set(pendingIds.map(String));let plan=[],diff='';
+  const messages=[],items=new Map(),requests=new Map(),pending=new Set(pendingIds.map(String)),runs=[],usageByTurn=new Map(),totals=new Map(),starts=new Map();let plan=[],diff='';
+  const usageOf=turn=>{const u=turn?.usage||turn?.tokenUsage||turn?.metrics||{};const input=u.input_tokens??u.inputTokens??u.prompt_tokens??u.promptTokens??null,output=u.output_tokens??u.outputTokens??u.completion_tokens??u.completionTokens??null,total=u.total_tokens??u.totalTokens??(Number.isFinite(input)&&Number.isFinite(output)?input+output:null);return {input,output,total};};
   const item=(id,type='agentMessage')=>{const key=String(id||'unknown');if(!items.has(key)){const value={id:key,type,text:'',output:'',status:'inProgress'};items.set(key,value);messages.push(value);}return items.get(key);};
   for(const e of events){
     const d=e.data||{};
@@ -8,20 +9,29 @@ export function conversation(events,{pendingIds=[]}={}){
     if(e.kind==='approval'){const r=requests.get(String(d.id));if(r){r.resolved=true;r.accepted=d.accepted;}continue;}
     if(e.kind!=='codex')continue;
     const m=d,p=m.params||{};
+    if(m.method==='turn/started')starts.set(p.turn?.id,e.created);
+    if(m.method==='thread/tokenUsage/updated'){
+      const total=p.tokenUsage?.total,previous=totals.get(p.threadId)||{};
+      if(total){const key=p.turnId,u=usageByTurn.get(key)||{input:0,output:0,total:0,cached:0,reasoning:0};for(const [field,wire] of [['input','inputTokens'],['output','outputTokens'],['total','totalTokens'],['cached','cachedInputTokens'],['reasoning','reasoningOutputTokens']])u[field]+=Math.max(0,(total[wire]||0)-(previous[wire]||0));usageByTurn.set(key,u);totals.set(p.threadId,total);}
+    }
     if(['item/started','item/completed'].includes(m.method)&&p.item){const v=p.item,current=item(v.id,v.type);Object.assign(current,v);current.status=v.status||(m.method==='item/completed'?'completed':'inProgress');if(v.type==='agentMessage'||v.type==='plan')current.text=v.text||current.text;if(v.aggregatedOutput!==undefined)current.output=v.aggregatedOutput;}
     if(m.method==='item/agentMessage/delta')item(p.itemId).text+=p.delta||'';
     if(m.method==='item/commandExecution/outputDelta')item(p.itemId,'commandExecution').output+=p.delta||'';
     if(m.method==='turn/plan/updated')plan=p.plan||[];
     if(m.method==='turn/diff/updated')diff=p.diff||'';
     if(m.method==='error'||m.method==='lew/workerError')messages.push({id:`error-${e.id}`,type:'error',text:p.error?.message||p.message||'Codex a rencontré une erreur.'});
-    if(m.method==='turn/completed'&&p.turn?.status==='failed')messages.push({id:`failed-${e.id}`,type:'error',text:p.turn.error?.message||'Cette exécution a échoué.'});
+    if(m.method==='turn/completed'){
+      const usage=usageByTurn.get(p.turn?.id)||usageOf(p.turn),start=starts.get(p.turn?.id)||events.find(x=>x.kind==='turn'&&String(x.data?.id)===String(p.turn?.id))?.created||null;
+      if(!runs.some(r=>r.id===p.turn?.id))runs.push({id:p.turn?.id||e.id,...(p.threadId?{threadId:p.threadId}:{}),status:p.turn?.status||'unknown',startedAt:start,finishedAt:e.created||null,durationMs:p.turn?.durationMs??(start&&e.created?Math.max(0,new Date(e.created)-new Date(start)):null),...usage});
+      if(p.turn?.status==='failed')messages.push({id:`failed-${e.id}`,type:'error',text:p.turn.error?.message||'Cette exécution a échoué.'});
+    }
     if(m.method==='serverRequest/resolved'){const r=requests.get(String(p.requestId));if(r)r.resolved=true;}
     if(m.id!==undefined&&['item/commandExecution/requestApproval','item/fileChange/requestApproval'].includes(m.method)){
       const r={id:`approval-${e.id}`,requestId:m.id,type:'approval',itemId:p.itemId,command:p.command,cwd:p.cwd,reason:p.reason,network:p.networkApprovalContext,grantRoot:p.grantRoot,resolved:false};requests.set(String(m.id),r);messages.push(r);
     }
   }
   for(const r of requests.values()){r.resolved=r.resolved||!pending.has(String(r.requestId));r.changes=items.get(String(r.itemId))?.changes||[];}
-  return {messages:messages.filter(m=>m.type!=='reasoning'),plan,diff};
+  return {messages:messages.filter(m=>m.type!=='reasoning'),plan,diff,runs};
 }
 export function diffLines(patch){
   let old=null,next=null;return String(patch||'').split('\n').map(text=>{

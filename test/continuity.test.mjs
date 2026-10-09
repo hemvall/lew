@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {createDraftStore} from '../public/draft-store.js';
 import {parseRoute,routeFor} from '../public/navigation-model.js';
 import {workspaceResume} from '../public/resume-model.js';
+import {conversation} from '../public/workspace-model.js';
 const storage=()=>{const values=new Map();return {getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key)};};
 
 test('drafts survive a fresh session, remain separate and clear only when requested',()=>{
@@ -37,6 +38,10 @@ test('resume context distinguishes live approvals, expired approvals and actual 
 test('mission-owned conversations point recovery back to the mission',()=>{
   const result=workspaceResume({title:'Agent review',status:'interrupted',mission_id:'m',mission_context:{objective:'Improve navigation'}},[]);
   assert.equal(result.objective,'Improve navigation');assert.match(result.nextAction,/mission/);
+});
+test('conversation exposes duration and token usage for every completed run',()=>{
+  const events=[{id:'turn',kind:'turn',data:{id:'t1'},created:'2026-10-09T00:00:00.000Z'},{id:'done',kind:'codex',data:{method:'turn/completed',params:{turn:{id:'t1',status:'completed',usage:{input_tokens:120,output_tokens:30,total_tokens:150}}}},created:'2026-10-09T00:01:02.000Z'}];
+  assert.deepEqual(conversation(events).runs,[{id:'t1',status:'completed',startedAt:'2026-10-09T00:00:00.000Z',finishedAt:'2026-10-09T00:01:02.000Z',durationMs:62000,input:120,output:30,total:150}]);
 });
 test('successful submission cannot clear a newer draft written while the request was pending',()=>{
   const persisted=storage(),drafts=createDraftStore(()=>persisted);

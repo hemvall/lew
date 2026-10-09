@@ -2,6 +2,7 @@ import { missionRoutes } from './mission-routes.mjs';
 import { missionContext } from './mission-context.mjs';
 import { attentionItems } from './public/attention-model.js';
 import http from 'node:http';
+import { selectRoute } from './model-routing.mjs';
 import { configured, query, all, one, closeStorage, initializeStorage, storageState } from './storage.mjs';
 import { mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
@@ -50,7 +51,7 @@ async function worker(w) {
       ...(w.thread_id ? {threadId:w.thread_id} : {}), cwd:w.cwd, approvalPolicy:'on-request', sandbox:'workspace-write'
     });
     await query('UPDATE workspaces SET thread_id=? WHERE id=?',thread.thread.id,w.id);
-    workers.set(w.id,c); return c;
+    c.workspaceThread=thread.thread.id;workers.set(w.id,c); return c;
   } catch(e) { c.close(); throw new Error(`Codex indisponible : ${e.message}. Installez Codex et connectez votre compte sur le worker.`); }
 }
 async function body(req) { let s=''; for await (const part of req) { s += part; if(Buffer.byteLength(s)>600000) throw new Error('Requête trop longue'); } return JSON.parse(s || '{}'); }
@@ -188,8 +189,11 @@ async function api(req, path, params=new URLSearchParams()) {
         const auth=await (await authWorker()).request('account/read',{refreshToken:false});
         if(auth.requiresOpenaiAuth && !auth.account) throw new Error('Connectez votre compte Codex avant de lancer une tâche.');
         const c=await worker(w), fresh=await workspace(w.id), p=await one('SELECT * FROM projects WHERE id=?',w.project_id);
+        const catalog=await c.request('model/list',{limit:100});
+        const routing=selectRoute(catalog.data||catalog.models||[],message);
+        await event(w.id,'routing',routing);
         await event(w.id,'user',{text:message}); await status(w.id,'running');
-        const turn=await c.request('turn/start',{threadId:fresh.thread_id,input:[{type:'text',text:`Contexte du projet ${p.name}:\n${p.context}\n\nTâche: ${w.title}\nBranche: ${w.branch}\n\n${message}`}]});
+        const turn=await c.request('turn/start',{threadId:fresh.thread_id,model:routing.model,effort:routing.effort,input:[{type:'text',text:`Contexte du projet ${p.name}:\n${p.context}\n\nTâche: ${w.title}\nBranche: ${w.branch}\n\n${message}`}]});
         await event(w.id,'turn',{id:turn.turn.id}); return {ok:true};
       } catch(e) {workers.get(w.id)?.close();workers.delete(w.id);await status(w.id,'failed');await event(w.id,'error',{text:e.message});throw e;} finally {locks.delete(w.id);}
     }

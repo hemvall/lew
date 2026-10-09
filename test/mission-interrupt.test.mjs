@@ -15,6 +15,7 @@ const send=m=>process.stdout.write(JSON.stringify(m)+'\\n');
 require('node:readline').createInterface({input:process.stdin}).on('line',line=>{
   const m=JSON.parse(line);
   if(m.method==='initialize')send({id:m.id,result:{}});
+  if(m.method==='model/list')send({id:m.id,result:{data:[{model:'available-model',isDefault:true,supportedReasoningEfforts:[{reasoningEffort:'medium'}]}]}});
   if(m.method==='thread/start')send({id:m.id,result:{thread:{id:'thread'}}});
   if(m.method==='turn/start')send({id:m.id,result:{turn:{id:'turn'}}});
   if(m.method==='turn/interrupt'){
