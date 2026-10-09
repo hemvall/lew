@@ -31,7 +31,8 @@ export function conversation(events,{pendingIds=[]}={}){
     }
   }
   for(const r of requests.values()){r.resolved=r.resolved||!pending.has(String(r.requestId));r.changes=items.get(String(r.itemId))?.changes||[];}
-  return {messages:messages.filter((m,i)=>m.type!=='reasoning'&&!(m.type==='error'&&messages[i-1]?.type==='error'&&messages[i-1].text===m.text)),plan,diff,runs};
+  const visible=[],errors=new Map();for(const m of messages){if(m.type==='reasoning')continue;if(m.type==='user')errors.clear();if(m.type==='error'){const previous=errors.get(m.text);if(previous){previous.occurrences=(previous.occurrences||1)+1;continue;}errors.set(m.text,m);}visible.push(m);}
+  return {messages:visible,plan,diff,runs};
 }
 export function diffLines(patch){
   let old=null,next=null;return String(patch||'').split('\n').map(text=>{

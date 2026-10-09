@@ -295,6 +295,19 @@ body[data-view="workspace"] .tool-card summary strong{font-size:12px;flex-shrink
 body[data-view="workspace"] .tool-card .badge{padding:2px 6px;font-size:10px}
 .command-preview{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:11px}
 .run-status-metrics{color:var(--muted);font-size:11px;flex-shrink:0;max-width:150px;text-align:right;line-height:1.4}
+/* Quiet execution feed: readable prose, lightweight tools and grouped alerts. */
+body[data-view="workspace"] .tool-card{border:0;border-bottom:1px solid color-mix(in srgb,var(--border) 55%,transparent);background:transparent;border-radius:0;box-shadow:none}
+body[data-view="workspace"] .tool-card>summary{padding:4px 8px;height:30px;min-height:30px;border-radius:5px;color:var(--muted)}
+body[data-view="workspace"] .tool-card>summary:hover{background:var(--hover)}
+body[data-view="workspace"] .tool-card>summary strong{font-weight:500;color:var(--muted);font-size:11px}
+body[data-view="workspace"] .tool-card .badge{background:transparent;color:var(--muted);font-size:10px;padding:0 4px}
+body[data-view="workspace"] .command-preview{font-size:11px;opacity:.85}
+.run-alert{display:flex;align-items:flex-start;gap:10px;margin:12px 0;padding:12px 14px;border:1px solid color-mix(in srgb,#dca66c 24%,var(--border));border-radius:10px;background:color-mix(in srgb,#dca66c 5%,var(--panel));font-size:13px;line-height:1.5}
+.run-alert-icon{display:grid;place-items:center;width:22px;height:22px;flex-shrink:0;border-radius:7px;background:color-mix(in srgb,#dca66c 14%,transparent);color:#dca66c;font-size:12px;font-weight:700}
+.run-alert>div{min-width:0;flex:1}.run-alert strong{font-size:13px;font-weight:600}.run-alert strong small{font-size:11px;color:var(--muted);font-weight:400}.run-alert p{margin:4px 0 0;color:var(--muted);font-size:12px}.run-alert details{margin-top:6px;color:var(--muted);font-size:11px}.run-alert summary{cursor:pointer}.run-alert pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;max-height:120px;overflow:auto;margin:8px 0 0}
+body[data-view="workspace"] .composer{background:color-mix(in srgb,var(--panel) 90%,var(--bg));border-color:color-mix(in srgb,var(--accent) 20%,var(--border));box-shadow:0 2px 10px #00000008;padding:10px 12px;margin:6px 10px 10px}
+body[data-view="workspace"] .composer textarea{font-size:14px;min-height:30px;height:30px}
+body[data-view="workspace"] .composer-bottom{font-size:10px;min-height:28px;margin-top:2px}
 body[data-view="workspace"] .run-metrics{max-height:52px;overflow:auto;margin:0 0 8px;font-size:11px}
 body[data-view="workspace"] .agent-plan{margin:0;border-radius:0;font-size:12px}
 body[data-view="workspace"] .agent-plan summary{padding:4px 10px}
