@@ -342,4 +342,10 @@ body[data-view="workspace"] .agent-plan summary{padding:4px 10px}
 #modal .launch-main,#modal .launch-side{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 #modal .launch-step-title{flex-wrap:wrap;row-gap:2px}
 #modal .launch-safety>div>div{display:block;min-width:0}
+#modal[open]:has(.mission-launch){display:flex;flex-direction:column;height:min(820px,calc(100dvh - 48px));max-height:calc(100dvh - 48px)}
+#modal:has(.mission-launch) .dialog-head{flex-shrink:0}
+#modal:has(.mission-launch) #modal-body{flex:1;min-height:0;overflow:hidden}
+#modal #mission-form.mission-launch{height:100%;max-height:none!important;min-height:0;grid-template-rows:minmax(0,1fr)}
+#modal .launch-main,#modal .launch-side{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:28px}
+@media(max-width:760px){#modal[open]:has(.mission-launch){height:calc(100dvh - 24px);max-height:calc(100dvh - 24px)}#modal #mission-form.mission-launch{max-height:none!important;display:block;overflow-y:auto!important}#modal .launch-main,#modal .launch-side{overflow:visible}}
 @media(max-width:760px){#modal .mission-launch{max-height:calc(100dvh - 100px)!important}#modal .launch-side{border-top:1px solid var(--border)}}
