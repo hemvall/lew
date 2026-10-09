@@ -1,4 +1,5 @@
 import { icon } from './icons.js';
+import { watchMissionPlans } from './mission-notifications.js';
 let agentCatalogPromise;
 import { mountAvatars } from './avatar-view.js';
 import { missionUI,stopMissionUI } from './mission-ui.js';
@@ -268,6 +269,7 @@ try{const direct=parseRoute(location.hash);if(direct)applyRoute(direct);else if(
 persistNavigation(true);
 render();await refresh();if(projectId&&view==='project')loadGithub(projectId);
 setInterval(refresh,3000);
+watchMissionPlans({api,open:id=>{missionSelection=id;navigate('missions');}});
 setInterval(async()=>{if(!$('#modal').open||$('#modal-title').textContent!=='Votre compte Codex'||!login)return;try{auth=await api('auth/status');if(auth.account||!auth.pendingLogin){login=null;accountContent();if(auth.account)refreshUsage(true);}$('#account-label').textContent=auth.account?'Codex connecté':'Connecter Codex';}catch{}},2500);
 
 function localDiffHTML(files=[]){return files.length?files.map(f=>`<details class="pr-file" open><summary><code>${escape(f.path)}</code><span class="muted">${escape(f.state)}</span></summary>${f.patch?patchHTML(f.patch):''}${f.previewReason?`<p class="muted">${escape(f.previewReason)}</p>`:!f.patch?'<p class="muted">Fichier vide ou diff indisponible.</p>':''}</details>`).join(''):'<p class="muted">Aucune modification locale.</p>';}
