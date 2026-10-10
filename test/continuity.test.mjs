@@ -23,6 +23,15 @@ test('direct routes round-trip conversations, missions, projects and PRs',()=>{
   for(const route of [{view:'workspace',workspaceId:'w-1'},{view:'missions',missionId:'m-2'},{view:'project',projectId:'p-3'},{view:'pr',projectId:'p-3',prNumber:42},{view:'review'}])assert.deepEqual(parseRoute(routeFor(route)),route);
   for(const invalid of ['#/workspaces/%2F..','#/missions/%ZZ','#/prs/project/-1','#/workspaces/a/extra','#/unknown'])assert.equal(parseRoute(invalid),null);
 });
+test('chat filters survive direct links and history routes for each conversation list',()=>{
+  for(const view of ['chats','project','activity']){
+    const route={view,projectId:'p-3',query:'café & navigation ?',status:'completed',sort:'title'};
+    assert.deepEqual(parseRoute(routeFor(route)),route);
+  }
+  assert.deepEqual(parseRoute('#/chats?status=invalid&sort=invalid'),{view:'chats'});
+  assert.deepEqual(parseRoute('#/chats'),{view:'chats'});
+  assert.equal(parseRoute('#/chats/%2F..'),null);
+});
 test('resume context uses completed agent results and durable human decisions',()=>{
   const events=[{id:'1',kind:'user',data:{text:'Fix navigation'},created:'2026-10-09T00:00:00Z'},{id:'2',kind:'codex',data:{id:'approval',method:'item/commandExecution/requestApproval',params:{command:'npm test'}}},{id:'3',kind:'approval',data:{id:'approval',accepted:true}},{id:'4',kind:'codex',data:{method:'item/completed',params:{item:{id:'result',type:'agentMessage',text:'Navigation fixed.'}}}},{id:'5',kind:'codex',data:{method:'item/agentMessage/delta',params:{itemId:'new',delta:'Unfinished response'}}}];
   const summary=workspaceResume({title:'Navigation',status:'completed'},events);

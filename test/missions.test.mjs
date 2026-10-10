@@ -63,7 +63,7 @@ test('a fresh retry runs after exhausted corrections without replaying completed
   assert.deepEqual(h.get().tasks[0],completed);assert.deepEqual(h.calls.slice(before),['developer','reviewer','validation']);
 });
 
-test('attempt and duration limits reject resume without consuming work or changing state',async()=>{
+test('attempt limits still reject resume without consuming work or changing state',async()=>{
   const h=harness();h.adapter.execute=async(w,p)=>({text:p.role==='orchestrator'?JSON.stringify(plan):result('blocked'),commands:[]});
   const m=await h.engine.create({objective:'Build',criteria:'Pass',limits:{attempts:1}},{id:'p'},h.profiles);
   await finish(h);await h.engine.approve(m.id,plan);await finish(h);
@@ -72,7 +72,32 @@ test('attempt and duration limits reject resume without consuming work or changi
   assert.deepEqual(h.get(),blocked);assert.equal(h.engine.running.size,0);
   const expired=await h.store.get(m.id);expired.startedAt=Date.now()-61*60000;await h.store.save(expired);
   const checkpoint=structuredClone(h.get());
-  await assert.rejects(h.engine.control(m.id,'resume'),/Durée maximale/);assert.deepEqual(h.get(),checkpoint);
+  await assert.rejects(h.engine.control(m.id,'resume'),/Nombre maximal de tentatives/);assert.deepEqual(h.get(),checkpoint);
+});
+
+test('resume renews an expired duration window and preserves completed tasks and review checkpoints',async()=>{
+  const h=harness(),twoTasks={...plan,tasks:[plan.tasks[0],{...plan.tasks[0],id:'next',title:'Next',dependsOn:['code']}]};
+  const m=await h.engine.create({objective:'Build',criteria:'Pass'},{id:'p'},h.profiles);
+  await finish(h);await h.engine.approve(m.id,twoTasks);await finish(h);
+  const expired=await h.store.get(m.id),completed=structuredClone(expired.tasks[0]);
+  expired.status='blocked';expired.startedAt=Date.now()-61*60000;expired.error='Durée maximale de mission atteinte.';
+  expired.tasks[1].status='interrupted';expired.tasks[1].stage='validation';expired.tasks[1].attempts=1;
+  const originalStartedAt=expired.startedAt,review=structuredClone(expired.tasks[1].review);await h.store.save(expired);
+  const deadlines=[],normal=h.adapter.execute,before=h.calls.length,resumedAt=Date.now();
+  h.adapter.execute=async(w,p,prompt,schema,deadline,...args)=>{deadlines.push(deadline);return normal(w,p,prompt,schema,deadline,...args);};
+  await h.engine.control(m.id,'resume');await finish(h);
+  assert.equal(h.get().status,'ready');assert.equal(h.get().startedAt,originalStartedAt);
+  assert.ok(h.get().executionStartedAt>=resumedAt);
+  assert.deepEqual(h.get().tasks[0],completed);assert.deepEqual(h.get().tasks[1].review,review);
+  assert.deepEqual(h.calls.slice(before),['validation']);
+  assert.deepEqual(deadlines,[h.get().executionStartedAt+60*60000]);
+});
+
+test('expired legacy missions can resume planning with a new bounded duration window',async()=>{
+  const h=harness();const m=await h.engine.create({objective:'Build',criteria:'Pass'},{id:'p'},h.profiles);await finish(h);
+  const expired=await h.store.get(m.id);expired.status='interrupted';expired.plan=null;expired.startedAt=Date.now()-61*60000;await h.store.save(expired);
+  await h.engine.control(m.id,'resume');await finish(h);
+  assert.equal(h.get().status,'awaiting_plan');assert.equal(h.get().limits.durationMinutes,60);
 });
 
 test('a failed interrupt request restores the active mission state',async()=>{

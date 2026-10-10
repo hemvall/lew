@@ -1,5 +1,11 @@
 # lew
 
+### Studio IA
+
+Lew's desktop has two apps: Lew · Travail combines repos, chats, missions, agents, activity and decisions in one workspace; Product Lab designs separate AI products. Windows can be moved, resized and minimized. The green button fills the entire viewport, including the OS bars. Minimizing preserves the current screen. Product Lab uses a dark sage theme, includes a complete editable demonstration, and supports deleting a solution with an undo action.
+
+Open **Studio IA** from the dock or sidebar to design AI products in the Freelance visual style. Six stages cover the need, user experience, data, architecture, evaluation and launch. The architecture view reflects the actual brief and links back to editable decisions. Export Markdown for a Lew mission or JSON for archiving. Product briefs are stored in this browser's local storage and are not synchronized with Supabase; export them for a durable copy. This app designs solutions and does not execute model calls.
+
 Your workspace for managing projects with Codex, recovering task context, and switching between branches and conversations on desktop and mobile.
 
 ## First version
@@ -115,6 +121,8 @@ If `TcpTestSucceeded` is false, check the network, VPN, and firewall. Run `start
 
 ## GitHub library and workspace contexts
 
+**Chats** opens all conversations with project and status filters, accent-insensitive search, and sorting by latest activity or title. Filters stay in the URL when opening a conversation and returning with browser Back. Expand a project in the sidebar for its recent chats, or use **Voir les chats** on a project card. Ctrl/Cmd K searches across projects; Ctrl/Cmd J starts with the current project selected. Arrow keys and Enter navigate search results. Activity dates come from recorded events; conversations without events have no displayed date.
+
 **Import from GitHub** lists public repos belonging to `GITHUB_USER` (hemvall by default). With `GITHUB_TOKEN`, it lists repos accessible to that token, including private ones. Search filters the loaded catalog; **Load more** continues pagination. Importing an already connected repo opens the existing project. Cloning happens when creating the first task and uses the PC's Git credentials.
 
 Favorites and recently opened projects are stored in Supabase. Fresh installations use `supabase/schema.sql`. Existing Lew databases need `supabase/migrations/20261008094517_lew_project_preferences.sql`, already applied to the Lew Supabase project used here.
@@ -147,11 +155,13 @@ After successful review and validation, **Publier une PR brouillon** pushes the 
 
 ### Recovery and attention inbox
 
-Interrupting a mission or one of its agent conversations checkpoints it as interrupted and permits an explicit resume. Completed tasks and completed review stages are preserved. A retry after exhausted correction rounds starts a fresh attempt within the mission's original attempt and duration limits; reaching either limit rejects the resume without consuming another attempt. A failed interrupt request restores the active state.
+Interrupting a mission or one of its agent conversations checkpoints it as interrupted and permits an explicit resume. Completed tasks and completed review stages are preserved. Each explicit resume grants a fresh execution window using the configured duration, including after a timeout. A retry after exhausted correction rounds starts a fresh attempt within the mission's original attempt limit; reaching that limit rejects the resume without consuming another attempt. A failed interrupt request restores the active state.
 
 **À traiter** combines live agent approvals, mission plans awaiting approval, blocked work, interrupted conversations and missions, checkpointed pauses, and missions ready for draft-PR publication. The desktop widget and sidebar count use the same list. Historical failed agent conversations do not duplicate mission decisions. Filters search projects, branches and requested actions; each row opens the relevant mission or conversation. Incomplete reads are labeled explicitly and never displayed as “Tout est en ordre.”
 
 ### Returning to work
+
+Mission headers and lists use compact titles instead of the entire request. New plans include an LLM-generated title describing the change and its main constraint. Opening a legacy mission reuses its native Codex thread name when available, otherwise generates and stores one short summary with a small advertised model. Concurrent title requests are coalesced; refreshes reuse the stored title. The original request and acceptance criteria remain in an expandable panel, and completed checkpoints are preserved.
 
 Use **+ Mission** on a project to open mission planning with that project selected. The launch form reads its real default branch and requires an explicit choice when GitHub is unavailable. Rapid project changes cannot apply a branch response from a different project.
 

@@ -30,10 +30,11 @@ export class MissionEngine {
     this.running.set(id,job);this.queue=job.catch(()=>{});
   }
   async execute(m,role,task,cwd,handoff,schema){
-    if(Date.now()>m.startedAt+m.limits.durationMinutes*60000)throw new Error('Durée maximale de mission atteinte.');
+    const deadline=(m.executionStartedAt??m.startedAt)+m.limits.durationMinutes*60000;
+    if(Date.now()>deadline)throw new Error('Durée maximale de mission atteinte.');
     const profile=m.profiles[role],ex={id:randomUUID(),role,taskId:task?.id||null,profile:structuredClone(profile),status:'running',startedAt:Date.now()};m.executions.push(ex);await this.store.save(m);
     try{const w=await this.adapter.workspace(m,role,task,cwd);ex.workspaceId=w.id;m.activeWorkspace=w.id;await this.store.save(m);await this.store.execution(m.id,w,ex);await this.store.event(m.id,'execution',{role,workspaceId:w.id,text:`${profile.name} : ${task?.title||'planification'}`});
-    const output=await this.adapter.execute(w,profile,agentPrompt(profile,m.project,m.objective+'\nCritères : '+m.criteria,task?.instructions||'Proposer un plan séquentiel de tâches de développement. Chaque tâche après la première dépend de la précédente. Aucun travail avant approbation humaine.',handoff),schema,m.startedAt+m.limits.durationMinutes*60000,async()=>{const fresh=await this.store.get(m.id);return ['running','planning'].includes(fresh.status);});ex.status='completed';ex.result=output;ex.finishedAt=Date.now();return output;}
+    const output=await this.adapter.execute(w,profile,agentPrompt(profile,m.project,m.objective+'\nCritères : '+m.criteria,task?.instructions||'Proposer un plan séquentiel de tâches de développement. Chaque tâche après la première dépend de la précédente. Aucun travail avant approbation humaine.',handoff),schema,deadline,async()=>{const fresh=await this.store.get(m.id);return ['running','planning'].includes(fresh.status);});ex.status='completed';ex.result=output;ex.finishedAt=Date.now();return output;}
     catch(e){ex.status=e.code==='MISSION_STOPPED'?'interrupted':'error';ex.error=e.message;throw e;}
     finally{m.activeWorkspace=null;await this.store.save(m);}
   }
@@ -41,7 +42,7 @@ export class MissionEngine {
   async run(id,planning){
     const m=await this.store.get(id);
     if(['cancelled','interrupted','interrupting'].includes(m.status))return;
-    if(planning){const cwd=await this.adapter.base(m);const output=await this.execute(m,'orchestrator',null,cwd,null,planSchema);if(!await this.boundary(m))return;let plan;try{plan=JSON.parse(output.text);}catch{throw new Error('Plan JSON absent.');}m.plan=validatePlan(plan);m.status='awaiting_plan';await this.store.save(m);await this.store.event(id,'plan',{text:'Plan proposé. Votre approbation est nécessaire.'});return;}
+    if(planning){const cwd=await this.adapter.base(m);const output=await this.execute(m,'orchestrator',null,cwd,null,planSchema);if(!await this.boundary(m))return;let plan;try{plan=JSON.parse(output.text);}catch{throw new Error('Plan JSON absent.');}m.plan=validatePlan(plan);if(m.plan.title)m.title=m.plan.title;m.status='awaiting_plan';await this.store.save(m);await this.store.event(id,'plan',{text:'Plan proposé. Votre approbation est nécessaire.'});return;}
     for(const task of m.tasks){
       if(task.status==='completed')continue;if(!await this.boundary(m))return;
       if(task.status!=='running'){
@@ -94,7 +95,6 @@ export class MissionEngine {
       if(action==='resume'&&this.running.has(id))throw new Error('Attendez la fin de l’exécution active avant de reprendre.');
       const m=await this.store.get(id),previous=m.status,next=transition(m.status,action);
       if(action==='resume'){
-        if(Date.now()>m.startedAt+m.limits.durationMinutes*60000)throw new Error('Durée maximale de mission atteinte. Créez une nouvelle mission pour poursuivre.');
         for(const t of m.tasks){
           if(t.status==='completed')continue;
           if(t.status==='interrupted'||(t.status==='running'&&['error','interrupted'].includes(m.executions.at(-1)?.status)))t.status='pending';
@@ -104,7 +104,8 @@ export class MissionEngine {
         }
         const task=m.tasks.find(t=>t.status!=='completed');
         if(task&&task.status!=='running'&&(task.attempts||0)>=m.limits.attempts)throw new Error(`Nombre maximal de tentatives atteint : ${task.title}. Créez une nouvelle mission pour poursuivre.`);
-        m.error=null;
+        // Explicit resume grants a fresh execution window without discarding checkpoints.
+        m.executionStartedAt=Date.now();m.error=null;
       }
       m.status=next;await this.store.save(m);
       if(['interrupt','cancel'].includes(action)&&m.activeWorkspace){

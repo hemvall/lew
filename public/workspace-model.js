@@ -67,3 +67,53 @@ export function prepareApprovalFeedback(){
     if(audio){try{for(const [i,frequency] of [523.25,659.25,783.99].entries()){const oscillator=audio.createOscillator(),gain=audio.createGain(),time=audio.currentTime+i*.09;oscillator.type='sine';oscillator.frequency.value=frequency;gain.gain.setValueAtTime(0,time);gain.gain.linearRampToValueAtTime(.055,time+.015);gain.gain.exponentialRampToValueAtTime(.001,time+.35);oscillator.connect(gain);gain.connect(audio.destination);oscillator.start(time);oscillator.stop(time+.38);}setTimeout(()=>void audio.close(),1000);}catch{void audio.close();}}
   };
 }
+
+// Chat discovery shares the existing browser module so running workers can serve updates.
+const titleOrder=new Intl.Collator('fr',{sensitivity:'base',numeric:true});
+
+export function normalizeSearch(value){
+  return String(value??'').normalize('NFD').replace(/\p{M}/gu,'').toLocaleLowerCase('fr').trim().replace(/\s+/g,' ');
+}
+
+export function missionTitle(mission){
+  const short=value=>typeof value==='string'&&value.trim()&&value.trim().length<=96?value.trim():null;
+  return short(mission.title)||short(mission.plan?.title)||short(mission.plan?.tasks?.[0]?.title)||short(mission.objective)||'Mission en préparation';
+}
+
+// Older workspaces may have no date; a malformed update must not hide creation.
+export function chatTimestamp(workspace){
+  for(const value of [workspace.updated_at,workspace.updated,workspace.created_at,workspace.created]){
+    if(value===null||value===undefined||value==='')continue;
+    const timestamp=value instanceof Date?value.getTime():typeof value==='number'?value:typeof value==='string'&&value.trim()?Date.parse(value):NaN;
+    if(Number.isFinite(timestamp))return timestamp;
+  }
+  return 0;
+}
+
+export function filterChats(workspaces=[],projects=[],{query='',projectId='',status='all',sort='recent'}={}){
+  const projectById=new Map(projects.map(project=>[project.id,project]));
+  const tokens=normalizeSearch(query).split(' ').filter(Boolean);
+  return workspaces.map((workspace,index)=>({workspace,index})).filter(({workspace})=>{
+    if(projectId&&workspace.project_id!==projectId)return false;
+    if(status!=='all'&&workspace.status!==status)return false;
+    const project=projectById.get(workspace.project_id);
+    const haystack=normalizeSearch([workspace.title,workspace.branch,project?.name,project?.repo].join(' '));
+    return tokens.every(token=>haystack.includes(token));
+  }).sort((a,b)=>{
+    const primary=sort==='title'
+      ?titleOrder.compare(a.workspace.title||'',b.workspace.title||'')
+      :(chatTimestamp(a.workspace)-chatTimestamp(b.workspace))*(sort==='oldest'?1:-1);
+    const aId=String(a.workspace.id??''),bId=String(b.workspace.id??'');
+    return primary||(aId<bId?-1:aId>bId?1:0)||a.index-b.index;
+  }).map(({workspace})=>workspace);
+}
+
+export function projectChatCounts(workspaces=[]){
+  const counts=new Map();
+  for(const workspace of workspaces){
+    const id=workspace.project_id;
+    if(id===null||id===undefined||id==='')continue;
+    counts.set(id,(counts.get(id)||0)+1);
+  }
+  return counts;
+}

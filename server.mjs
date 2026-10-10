@@ -105,21 +105,26 @@ async function api(req, path, params=new URLSearchParams()) {
   }
   if(req.method==='GET' && path==='/api/state') {
     await initializeStorage();
-    let projects=[],workspaces=[],attention={items:[],complete:false};
+    let projects=[],workspaces=[],attention={items:[],complete:false},catalog={projectsComplete:false,workspacesComplete:false,complete:false};
     if(storageState().ready) {
       const results=await Promise.allSettled([
         all('SELECT * FROM projects'),
-        all("SELECT w.*,e.data->'profile' AS agent_profile,e.mission_id FROM workspaces w LEFT JOIN mission_executions e ON e.workspace_id=w.id"),
+        // Both probes use events(workspace_id,id), including a backward scan for the latest event.
+        all(`SELECT w.*,e.data->'profile' AS agent_profile,e.mission_id,
+          (SELECT created FROM events WHERE workspace_id=w.id ORDER BY id ASC LIMIT 1) AS created,
+          (SELECT created FROM events WHERE workspace_id=w.id ORDER BY id DESC LIMIT 1) AS updated
+          FROM workspaces w LEFT JOIN mission_executions e ON e.workspace_id=w.id`),
         all('SELECT data FROM missions ORDER BY created DESC')
       ]);
       if(results[0].status==='fulfilled')projects=results[0].value;
       if(results[1].status==='fulfilled')workspaces=results[1].value;
+      catalog={projectsComplete:results[0].status==='fulfilled',workspacesComplete:results[1].status==='fulfilled',complete:results.slice(0,2).every(r=>r.status==='fulfilled')};
       const missionList=results[2].status==='fulfilled'?results[2].value.map(r=>r.data):[];
       workspaces=workspaces.map(w=>({...w,mission_context:missionContext(w,missionList)}));
       attention={items:attentionItems({projects,workspaces,missions:missionList,pendingWorkspaceIds:[...approvals.keys()].map(key=>key.slice(0,key.indexOf(':')))}),complete:results.every(r=>r.status==='fulfilled')};
       if(!attention.complete)attention.error='Certaines décisions n’ont pas pu être chargées. Réessayez l’actualisation.';
     }
-    return {projects,workspaces,attention,storage:storageState(),worker:{available:await codexAvailable()},authenticatedRemote:!!process.env.LEW_ACCESS_TOKEN};
+    return {projects,workspaces,attention,catalog,storage:storageState(),worker:{available:await codexAvailable()},authenticatedRemote:!!process.env.LEW_ACCESS_TOKEN};
   }
   if(req.method==='GET'&&path==='/api/github/repos')return listRepositories({page:params.get('page')||1,owner:params.get('owner')||process.env.GITHUB_USER||'hemvall'});
   if(req.method==='POST'&&path==='/api/github/import'){
@@ -231,9 +236,16 @@ const server=http.createServer(async(req,res)=>{
   }
   const allowed={'/':'index.html','/app.js':'app.js','/icons.js':'icons.js','/workspace-model.js':'workspace-model.js','/style.css':'style.css','/manifest.json':'manifest.json','/icon.svg':'icon.svg','/wallpaper.svg':'wallpaper.svg','/mission-ui.js':'mission-ui.js','/avatar-view.js':'avatar-view.js','/vendor/avatar-runtime.js':'vendor/avatar-runtime.js','/vendor/AVATAR-LICENSE.txt':'vendor/AVATAR-LICENSE.txt','/vendor/AJV-LICENSE.txt':'vendor/AJV-LICENSE.txt','/fonts/InterVariable.woff2':'fonts/InterVariable.woff2','/fonts/INTER-LICENSE.txt':'fonts/INTER-LICENSE.txt'};
   allowed['/attention-model.js']='attention-model.js';
+  allowed['/studio-ui.js']='studio-ui.js';
+  allowed['/studio-visuals.js']='studio-visuals.js';
+  allowed['/studio-model.js']='studio-model.js';
+  allowed['/studio.css']='studio.css';
+  allowed['/os-model.js']='os-model.js';
+  allowed['/os-windows.js']='os-windows.js';
+  allowed['/os-windows.css']='os-windows.css';
   for(const name of ['draft-store','navigation-model','resume-model','markdown','verification-model'])allowed[`/${name}.js`]=`${name}.js`;
   if(!allowed[url.pathname]) {res.writeHead(404);return res.end();}
-  res.setHeader('Content-Security-Policy',"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'");
+  res.setHeader('Content-Security-Policy',"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self'; connect-src 'self'; frame-src 'self'; frame-ancestors 'self'");
   res.setHeader('Content-Type',url.pathname.endsWith('.woff2')?'font/woff2':url.pathname.endsWith('.txt')?'text/plain':url.pathname.endsWith('.js')?'text/javascript':url.pathname.endsWith('.css')?'text/css':url.pathname.endsWith('.svg')?'image/svg+xml':url.pathname.endsWith('.json')?'application/json':'text/html');
   res.end(readFileSync(new URL(`./public/${allowed[url.pathname]}`,import.meta.url)));
 });
