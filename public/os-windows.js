@@ -20,6 +20,7 @@ export function openApplication(route){
     for(const [action,label] of [['close','Fermer'],['minimize','Réduire'],['maximize','Agrandir']]){const button=document.createElement('button');button.dataset.action=action;button.setAttribute('aria-label',label+' '+app.name);button.title=label;controls.append(button);}
     const title=document.createElement('strong');title.textContent=app.name;const mark=document.createElement('span');mark.className='os-app-mark';mark.innerHTML=icon(app.icon);titlebar.append(controls,mark,title);
     const frame=document.createElement('iframe');frame.title=app.name;frame.src='/?app='+app.id+(route.launchProjectId?'&launchProjectId='+encodeURIComponent(route.launchProjectId):'')+routeFor(route);frame.allow='clipboard-write';
+    if(route.launchBrief)frame.addEventListener('load',()=>frame.contentWindow.postMessage({type:'lew-route',route},location.origin),{once:true});
     element.append(titlebar,frame);document.body.append(element);win={element,frame,route,app};windows.set(app.id,win);
     const offset=(windows.size-1)*24;element.style.left=(28+offset)+'px';element.style.top=(58+offset)+'px';
     const focus=()=>{element.style.zIndex=++layer;document.querySelectorAll('.os-window').forEach(w=>w.classList.toggle('focused',w===element));};
@@ -34,7 +35,7 @@ export function openApplication(route){
       titlebar.onpointermove=move=>{const pos=clampWindow(rect.x+move.clientX-startX,rect.y+move.clientY-startY,rect.width,rect.height,{width:innerWidth,height:innerHeight});element.style.left=pos.x+'px';element.style.top=pos.y+'px';};
       const end=()=>{element.classList.remove('dragging');titlebar.onpointermove=null;titlebar.onpointerup=null;titlebar.onlostpointercapture=null;};titlebar.onpointerup=end;titlebar.onlostpointercapture=end;
     };
-  }else if(!(route.view===app.view&&!route.projectId&&!route.workspaceId&&!route.missionId&&!route.prNumber&&!route.query&&!route.launchProjectId)&&(route.launchProjectId||routeFor(win.route)!==routeFor(route))){
+  }else if(!(route.view===app.view&&!route.projectId&&!route.workspaceId&&!route.missionId&&!route.prNumber&&!route.query&&!route.launchProjectId&&!route.launchBrief)&&(route.launchBrief||route.launchProjectId||routeFor(win.route)!==routeFor(route))){
     win.frame.contentWindow.postMessage({type:'lew-route',route},location.origin);win.route=route;
   }
   if([...windows.values()].some(w=>w!==win&&!w.element.hidden&&w.element.classList.contains('maximized'))){win.element.classList.add('maximized');win.element.querySelector('[data-action=maximize]').setAttribute('aria-label','Restaurer '+app.name);}

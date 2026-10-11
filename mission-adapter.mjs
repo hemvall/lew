@@ -12,9 +12,26 @@ const git=async(cwd,args)=>(await exec('git',args,{cwd,timeout:120000,maxBuffer:
 export class MissionAdapter {
   constructor({root,query,event,workers,approvals}){Object.assign(this,{root,query,event,workers,approvals});this.preparing=new Set();}
   repo(m){return join(this.root,'repos',m.projectId);}
-  async prepare(m){const repo=this.repo(m);if(this.preparing.has(repo))throw new Error('Préparation du repo déjà en cours. Réessayez la mission.');this.preparing.add(repo);try{await mkdir(join(this.root,'repos'),{recursive:true});await mkdir(join(this.root,'workspaces'),{recursive:true});if(!existsSync(repo))await exec('git',['clone',`https://github.com/${m.project.repo}.git`,repo],{timeout:120000});await git(repo,['fetch','origin']);return repo;}finally{this.preparing.delete(repo);}}
-  async base(m){const repo=await this.prepare(m);m.baseHead=await git(repo,['rev-parse',`origin/${m.base}^{commit}`]);return this.isolate(m,{id:'plan'},'orchestrator',m.baseHead);}
-  async baseHead(m){return m.baseHead||await git(this.repo(m),['rev-parse',`origin/${m.base}^{commit}`]);}
+  async prepare(m){const repo=this.repo(m);if(this.preparing.has(repo))throw new Error('Préparation du repo déjà en cours. Réessayez la mission.');this.preparing.add(repo);try{await mkdir(join(this.root,'repos'),{recursive:true});await mkdir(join(this.root,'workspaces'),{recursive:true});if(!existsSync(repo))await exec('git',['clone',`https://github.com/${m.project.repo}.git`,repo],{timeout:120000});
+    try{await git(repo,['check-ref-format',`refs/heads/${m.base}`]);}catch{throw new Error('Branche de départ invalide.');}
+    try{await git(repo,['fetch','--no-tags','origin',`+refs/heads/${m.base}:refs/remotes/origin/${m.base}`]);}catch(error){
+      if(/couldn't find remote ref|could not find remote ref/i.test(error.stderr||'')){
+        const refs=await git(repo,['ls-remote','origin']);
+        if(!refs){m.baseHead=await this.emptyBase(repo,m.base);return repo;}
+        throw new Error(`La branche « ${m.base} » n’existe pas sur le dépôt distant. Choisissez une branche existante pour créer la mission.`);
+      }
+      throw new Error(`Impossible de récupérer la branche « ${m.base} ». Vérifiez l’accès Git au dépôt et la connexion du worker.`);
+    }
+    return repo;}finally{this.preparing.delete(repo);}}
+  async base(m){m.baseHead=await this.baseHead(m);return this.isolate(m,{id:'plan'},'orchestrator',m.baseHead);}
+  async baseHead(m){if(m.baseHead)return m.baseHead;const repo=await this.prepare(m);return m.baseHead||git(repo,['rev-parse','--verify',`refs/remotes/origin/${m.base}^{commit}`]);}
+  async emptyBase(repo,base){
+    const ref=`refs/lew/empty-base/${base}`;
+    try{return await git(repo,['rev-parse','--verify',`${ref}^{commit}`]);}catch{}
+    const tree=await new Promise((resolve,reject)=>{const child=execFile('git',['hash-object','-t','tree','-w','--stdin'],{cwd:repo,timeout:120000},(error,stdout)=>error?reject(error):resolve(stdout.trim()));child.stdin.end();});
+    const head=await git(repo,['-c','user.name=Lew','-c','user.email=lew@localhost','commit-tree',tree,'-m','chore: initialize mission workspace']);
+    await git(repo,['update-ref',ref,head]);return head;
+  }
   async development(m,task,base){if(task.workspace&&existsSync(task.workspace.cwd))return task.workspace;const id=randomUUID(),cwd=join(this.root,'workspaces',id),branch=`lew/mission-${m.id.slice(0,6)}-${task.id}`;await git(this.repo(m),['worktree','add','-b',branch,cwd,base]);return {cwd,branch};}
   async isolate(m,task,role,head){const cwd=join(this.root,'workspaces',randomUUID());await git(this.repo(m),['worktree','add','--detach',cwd,head]);return {cwd,branch:''};}
   async workspace(m,role,task,context){const id=randomUUID(),w={id,project_id:m.projectId,title:`${m.profiles[role].name} · ${task?.title||'Plan de mission'}`,branch:context.branch||'',cwd:context.cwd,thread_id:null,status:'idle'};await this.query('INSERT INTO workspaces(id,project_id,title,branch,cwd,thread_id,status) VALUES(?,?,?,?,?,?,?)',w.id,w.project_id,w.title,w.branch,w.cwd,null,'idle');return w;}

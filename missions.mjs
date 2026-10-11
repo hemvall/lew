@@ -57,7 +57,11 @@ export class MissionEngine {
     };
     const graph=new StateGraph(State)
       .addNode('plan',async()=>{
-const cwd=await this.adapter.base(m);const output=await this.execute(m,'orchestrator',null,cwd,null,planSchema);if(!await this.boundary(m))return;let plan;try{plan=JSON.parse(output.text);}catch{throw new Error('Plan JSON absent.');}m.plan=validatePlan(plan);if(m.plan.title)m.title=m.plan.title;m.status='awaiting_plan';await this.store.save(m);await this.store.event(id,'plan',{text:'Plan proposé. Votre approbation est nécessaire.'});
+let plan;
+        const previous=m.executions.findLast(ex=>ex.role==='orchestrator'&&ex.status==='completed'&&ex.result?.text);
+        if(previous){try{plan=validatePlan(JSON.parse(previous.result.text));}catch{}}
+        if(!plan){const cwd=await this.adapter.base(m);const output=await this.execute(m,'orchestrator',null,cwd,null,planSchema);if(!await this.boundary(m))return;try{plan=JSON.parse(output.text);}catch{throw new Error('Plan JSON absent.');}plan=validatePlan(plan);}
+        if(!await this.boundary(m))return;m.plan=plan;if(m.plan.title)m.title=m.plan.title;m.status='awaiting_plan';await this.store.save(m);await this.store.event(id,'plan',{text:'Plan proposé. Votre approbation est nécessaire.'});
         return {};
       })
       .addNode('prepare',async()=>{
