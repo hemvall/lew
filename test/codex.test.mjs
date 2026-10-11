@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Codex } from '../codex.mjs';
 const dir=mkdtempSync(join(tmpdir(),'lew-protocol-'));
-const bin=join(dir,'codex');
+const bin=join(dir,process.platform==='win32'?'codex.js':'codex');
 writeFileSync(bin,`#!/usr/bin/env node
 const rl=require('node:readline').createInterface({input:process.stdin});let initialized=false;
 function send(v){process.stdout.write(JSON.stringify(v)+'\\n');}
@@ -28,5 +28,5 @@ test('process failure rejects pending requests rather than leaving the UI runnin
   const c=new Codex(()=>{},bin);await c.initialize();await assert.rejects(c.request('crash'),/arrêté/);c.close();
 });
 test('missing binary produces a recoverable error',async()=>{
-  const c=new Codex(()=>{},join(dir,'missing'));await assert.rejects(c.initialize(),/ENOENT/);c.close();
+  let c;try{await assert.rejects(async()=>{c=new Codex(()=>{},join(dir,'missing'));await c.initialize();},/ENOENT|Codex introuvable/);}finally{c?.close();}
 });

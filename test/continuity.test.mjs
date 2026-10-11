@@ -1,0 +1,61 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createDraftStore} from '../public/draft-store.js';
+import {parseRoute,routeFor} from '../public/navigation-model.js';
+import {workspaceResume} from '../public/resume-model.js';
+import {conversation} from '../public/workspace-model.js';
+const storage=()=>{const values=new Map();return {getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key)};};
+
+test('drafts survive a fresh session, remain separate and clear only when requested',()=>{
+  const persisted=storage(),first=createDraftStore(()=>persisted);
+  assert.equal(first.set('a','Keep this draft'),true);first.set('b','Other branch');
+  const reopened=createDraftStore(()=>persisted);
+  assert.equal(reopened.get('a'),'Keep this draft');assert.equal(reopened.get('b'),'Other branch');
+  reopened.delete('a');assert.equal(createDraftStore(()=>persisted).get('a'),'');
+  assert.equal(createDraftStore(()=>persisted).get('b'),'Other branch');
+});
+test('unavailable or corrupt browser storage preserves an in-memory draft without claiming it was saved',()=>{
+  const drafts=createDraftStore(()=>{throw new Error('Storage unavailable');});
+  assert.equal(drafts.set('a','Unsaved'),false);assert.equal(drafts.get('a'),'Unsaved');assert.equal(drafts.persisted('a'),false);
+  const persisted=storage();persisted.setItem('lew-draft:a','{broken');assert.equal(createDraftStore(()=>persisted).get('a'),'');
+});
+test('direct routes round-trip conversations, missions, projects and PRs',()=>{
+  for(const route of [{view:'workspace',workspaceId:'w-1'},{view:'missions',missionId:'m-2'},{view:'project',projectId:'p-3'},{view:'pr',projectId:'p-3',prNumber:42},{view:'review'}])assert.deepEqual(parseRoute(routeFor(route)),route);
+  for(const invalid of ['#/workspaces/%2F..','#/missions/%ZZ','#/prs/project/-1','#/workspaces/a/extra','#/unknown'])assert.equal(parseRoute(invalid),null);
+});
+test('chat filters survive direct links and history routes for each conversation list',()=>{
+  for(const view of ['chats','project','activity']){
+    const route={view,projectId:'p-3',query:'café & navigation ?',status:'completed',sort:'title'};
+    assert.deepEqual(parseRoute(routeFor(route)),route);
+  }
+  assert.deepEqual(parseRoute('#/chats?status=invalid&sort=invalid'),{view:'chats'});
+  assert.deepEqual(parseRoute('#/chats'),{view:'chats'});
+  assert.equal(parseRoute('#/chats/%2F..'),null);
+});
+test('resume context uses completed agent results and durable human decisions',()=>{
+  const events=[{id:'1',kind:'user',data:{text:'Fix navigation'},created:'2026-10-09T00:00:00Z'},{id:'2',kind:'codex',data:{id:'approval',method:'item/commandExecution/requestApproval',params:{command:'npm test'}}},{id:'3',kind:'approval',data:{id:'approval',accepted:true}},{id:'4',kind:'codex',data:{method:'item/completed',params:{item:{id:'result',type:'agentMessage',text:'Navigation fixed.'}}}},{id:'5',kind:'codex',data:{method:'item/agentMessage/delta',params:{itemId:'new',delta:'Unfinished response'}}}];
+  const summary=workspaceResume({title:'Navigation',status:'completed'},events);
+  assert.equal(summary.objective,'Navigation');assert.equal(summary.latestResult,'Navigation fixed.');assert.equal(summary.lastInstruction,'Fix navigation');
+  assert.equal(summary.decisions[0].text,'Autorisé : npm test');assert.match(summary.nextAction,/livraison/);
+});
+test('resume context distinguishes live approvals, expired approvals and actual failures',()=>{
+  const events=[{id:'1',kind:'codex',data:{id:'r',method:'item/commandExecution/requestApproval',params:{command:'npm test'}}}];
+  assert.equal(workspaceResume({status:'waiting'},events,{pendingIds:['r']}).blocker,'npm test');
+  assert.match(workspaceResume({status:'waiting'},events).nextAction,/Actualiser/);
+  assert.equal(workspaceResume({status:'failed'},[{id:'2',kind:'error',data:{text:'Tests failed'}}]).blocker,'Tests failed');
+});
+test('mission-owned conversations point recovery back to the mission',()=>{
+  const result=workspaceResume({title:'Agent review',status:'interrupted',mission_id:'m',mission_context:{objective:'Improve navigation'}},[]);
+  assert.equal(result.objective,'Improve navigation');assert.match(result.nextAction,/mission/);
+});
+test('conversation exposes duration and token usage for every completed run',()=>{
+  const events=[{id:'turn',kind:'turn',data:{id:'t1'},created:'2026-10-09T00:00:00.000Z'},{id:'done',kind:'codex',data:{method:'turn/completed',params:{turn:{id:'t1',status:'completed',usage:{input_tokens:120,output_tokens:30,total_tokens:150}}}},created:'2026-10-09T00:01:02.000Z'}];
+  assert.deepEqual(conversation(events).runs,[{id:'t1',status:'completed',startedAt:'2026-10-09T00:00:00.000Z',finishedAt:'2026-10-09T00:01:02.000Z',durationMs:62000,input:120,output:30,total:150}]);
+});
+test('successful submission cannot clear a newer draft written while the request was pending',()=>{
+  const persisted=storage(),drafts=createDraftStore(()=>persisted);
+  drafts.set('a','Submitted instruction');drafts.set('a','Next instruction');
+  assert.equal(drafts.clearSubmitted('a','Submitted instruction'),false);
+  assert.equal(createDraftStore(()=>persisted).get('a'),'Next instruction');
+  assert.equal(drafts.clearSubmitted('a','Next instruction'),true);assert.equal(createDraftStore(()=>persisted).get('a'),'');
+});

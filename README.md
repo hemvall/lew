@@ -1,5 +1,11 @@
 # lew
 
+### Studio IA
+
+Lew's desktop has two apps: Lew · Travail combines repos, chats, missions, agents, activity and decisions in one workspace; Product Lab designs separate AI products. Windows can be moved, resized and minimized. The green button fills the entire viewport, including the OS bars. Minimizing preserves the current screen. Product Lab uses a dark sage theme, includes a complete editable demonstration, and supports deleting a solution with an undo action.
+
+Open **Studio IA** from the dock or sidebar to design AI products in the Freelance visual style. Six stages cover the need, user experience, data, architecture, evaluation and launch. The architecture view reflects the actual brief and links back to editable decisions. Export Markdown for a Lew mission or JSON for archiving. Product briefs are stored in this browser's local storage and are not synchronized with Supabase; export them for a durable copy. This app designs solutions and does not execute model calls.
+
 Your workspace for managing projects with Codex, recovering task context, and switching between branches and conversations on desktop and mobile.
 
 ## First version
@@ -115,6 +121,8 @@ If `TcpTestSucceeded` is false, check the network, VPN, and firewall. Run `start
 
 ## GitHub library and workspace contexts
 
+**Chats** opens all conversations with project and status filters, accent-insensitive search, and sorting by latest activity or title. Filters stay in the URL when opening a conversation and returning with browser Back. Expand a project in the sidebar for its recent chats, or use **Voir les chats** on a project card. Ctrl/Cmd K searches across projects; Ctrl/Cmd J starts with the current project selected. Arrow keys and Enter navigate search results. Activity dates come from recorded events; conversations without events have no displayed date.
+
 **Import from GitHub** lists public repos belonging to `GITHUB_USER` (hemvall by default). With `GITHUB_TOKEN`, it lists repos accessible to that token, including private ones. Search filters the loaded catalog; **Load more** continues pagination. Importing an already connected repo opens the existing project. Cloning happens when creating the first task and uses the PC's Git credentials.
 
 Favorites and recently opened projects are stored in Supabase. Fresh installations use `supabase/schema.sql`. Existing Lew databases need `supabase/migrations/20261008094517_lew_project_preferences.sql`, already applied to the Lew Supabase project used here.
@@ -145,6 +153,32 @@ Pause lets the active agent finish and checkpoints its result before launching a
 
 After successful review and validation, **Publier une PR brouillon** pushes the final task branch and creates or reuses its draft PR. Publication is a human action; Lew never merges the PR automatically. A changed revision must be reviewed again. Git identity, push access and `GITHUB_TOKEN` must be configured on the worker.
 
+### Recovery and attention inbox
+
+Interrupting a mission or one of its agent conversations checkpoints it as interrupted and permits an explicit resume. Completed tasks and completed review stages are preserved. Each explicit resume grants a fresh execution window using the configured duration, including after a timeout. A retry after exhausted correction rounds starts a fresh attempt within the mission's original attempt limit; reaching that limit rejects the resume without consuming another attempt. A failed interrupt request restores the active state.
+
+**À traiter** combines live agent approvals, mission plans awaiting approval, blocked work, interrupted conversations and missions, checkpointed pauses, and missions ready for draft-PR publication. The desktop widget and sidebar count use the same list. Historical failed agent conversations do not duplicate mission decisions. Filters search projects, branches and requested actions; each row opens the relevant mission or conversation. Incomplete reads are labeled explicitly and never displayed as “Tout est en ordre.”
+
+### Returning to work
+
+Mission headers and lists use compact titles instead of the entire request. New plans include an LLM-generated title describing the change and its main constraint. Opening a legacy mission reuses its native Codex thread name when available, otherwise generates and stores one short summary with a small advertised model. Concurrent title requests are coalesced; refreshes reuse the stored title. The original request and acceptance criteria remain in an expandable panel, and completed checkpoints are preserved.
+
+Use **+ Mission** on a project to open mission planning with that project selected. The launch form reads its real default branch and requires an explicit choice when GitHub is unavailable. Rapid project changes cannot apply a branch response from a different project.
+
+Agent conversations display their parent mission, role and current task stage, with **Retour à la mission**. Mission-owned conversations retain approvals and readable history; continuation, commits and publication use the mission's controls. Mission details also offer a copy-link action.
+
+Conversation and mission URLs keep their selection after reload and support browser back/forward navigation. Conversations offer a copy-link action and a resume panel derived from recorded history: objective, latest completed response, human decisions, current blocker and next action. Unfinished agent responses are not presented as completed results.
+
+Composer drafts are saved separately for each conversation in this browser and restored after reload. A failed submission keeps the draft; a successful submission clears it. The composer reports when browser storage is unavailable. Drafts are local to the device; the resume context comes from the durable conversation history.
+
+### Reviewing changes
+
+Agent responses and GitHub PR descriptions/comments render a safe Markdown subset (headings, lists, emphasis, links and fenced code). Raw HTML is escaped and links accept only HTTP(S); embedded images are not loaded.
+
+Local review and the commit dialog show numbered diffs for tracked changes and new text files. Sensitive `.env` content is hidden; binaries, symbolic links, unsupported encodings and oversized previews are labeled explicitly. Previews are bounded to 256 KiB per file and 1 MiB in total. Stale fingerprint checks still reject changes made after review.
+
+Commit and publication dialogs display command results observed in the latest recorded execution, including failures and unknown results. PR descriptions include those results and distinguish them from the agent's reported summary. Recorded command success does not certify later file changes.
+
 ### Portable avatars
 
 Import a version 1 `.avatar.json` (maximum 256 KiB) in **Agents**, preview it and assign it to a profile. Map execution states to expressions/animations present in the file. Missing avatars use initials. Animation pauses when offscreen, when the tab is hidden and with reduced motion enabled.
@@ -164,3 +198,7 @@ Typography uses native system fonts on Apple devices and a locally hosted Inter 
 Each role has a distinct idle expression pool, work animation, timing and independent blink clock. The 23 BetchApp animations are converted to the portable Avatar Lab format, including sleep, waking, listening, curiosity and celebration. Eye micro-saccades and gentle body drift keep idle agents alive; polling preserves the mounted controller rather than restarting it before a blink.
 
 Role contracts in `agent-instructions.mjs` are included in actual Codex turns: Atlas inspects and plans, Nova implements and reports evidence, Iris reviews the exact revision, and Pulse runs independent verification. Existing default instructions upgrade only when they still match the original preset. Custom instructions and imported avatars are preserved; active missions retain their snapshotted profiles. Bundled avatar definitions refresh on the next server initialization. Control surfaces share a consistent SVG icon grid instead of font symbols.
+
+## Mission worker diagnostics
+
+The launch confirmation checks that Git and Codex can start on the worker. If either executable is missing, denied by the process permissions, or times out, the launch stays disabled and shows a recovery message. Use **Vérifier le worker** after correcting the worker installation or restarting Lew in an authorized terminal. The server repeats this check for mission creation requests, before persisting a mission. This check does not verify repository permissions, model quotas, or the Codex account; the existing account check still applies. It never grants permissions automatically.

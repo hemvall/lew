@@ -5,6 +5,15 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {git,snapshot,commitSelected,publish,summarizeChecks,pullRequestStatus} from '../delivery.mjs';
 async function repo(){const dir=await mkdtemp(join(tmpdir(),'lew-git-'));await git(dir,['init','-b','main']);await git(dir,['config','user.name','lew test']);await git(dir,['config','user.email','lew@example.test']);await writeFile(join(dir,'tracked.txt'),'first');await git(dir,['add','.']);await git(dir,['commit','-m','initial']);await git(dir,['checkout','-b','lew/task']);return dir;}
+test('review previews include new text, hide secrets and label binary and large files',async()=>{
+  const dir=await repo();try{
+    await writeFile(join(dir,'new.txt'),'first\nsecond\n');await writeFile(join(dir,'image.bin'),Buffer.from([0,1,2]));await writeFile(join(dir,'large.txt'),'x'.repeat(300000));
+    await writeFile(join(dir,'.env'),'private-before');await git(dir,['add','.env']);await git(dir,['commit','-m','fixture configuration']);await writeFile(join(dir,'.env'),'private-after');
+    const current=await snapshot(dir),byPath=Object.fromEntries(current.files.map(f=>[f.path,f]));
+    assert.match(byPath['new.txt'].patch,/@@ -0,0 \+1,2 @@\n\+first\n\+second/);assert.match(byPath['image.bin'].previewReason,/binaire/);assert.match(byPath['large.txt'].previewReason,/volumineux/);
+    assert.equal(byPath['.env'].patch,'');assert.equal(current.diff.includes('private-before'),false);assert.equal(current.diff.includes('private-after'),false);
+  }finally{await rm(dir,{recursive:true,force:true});}
+});
 test('selected commit preserves unrelated staged changes and includes new files',async()=>{const dir=await repo();try{await writeFile(join(dir,'tracked.txt'),'modified');await git(dir,['add','tracked.txt']);await writeFile(join(dir,'new.txt'),'new');const current=await snapshot(dir);await commitSelected(dir,{fingerprint:current.fingerprint,files:['new.txt'],message:'add new'},'lew/task');assert.equal((await git(dir,['show','HEAD:tracked.txt'])),'first');assert.equal((await git(dir,['show','HEAD:new.txt'])),'new');assert.equal((await git(dir,['diff','--cached','--name-only'])).trim(),'tracked.txt');}finally{await rm(dir,{recursive:true,force:true});}});
 test('stale review is rejected when an untracked file changes',async()=>{const dir=await repo();try{await writeFile(join(dir,'new.txt'),'first');const current=await snapshot(dir);await writeFile(join(dir,'new.txt'),'changed');await assert.rejects(commitSelected(dir,{fingerprint:current.fingerprint,files:['new.txt'],message:'commit'},'lew/task'),/changé/);}finally{await rm(dir,{recursive:true,force:true});}});
 test('unknown paths and .env files cannot be silently added',async()=>{const dir=await repo();try{await writeFile(join(dir,'.env'),'private');const current=await snapshot(dir);assert.equal(current.files.find(f=>f.path==='.env').selectable,false);await assert.rejects(commitSelected(dir,{fingerprint:current.fingerprint,files:['../outside'],message:'commit'},'lew/task'),/invalide/);}finally{await rm(dir,{recursive:true,force:true});}});

@@ -1,5 +1,7 @@
 // A single optical grid and stroke weight for every control surface.
 export const iconPaths={
+  lab:'<path d="M9 3h6M10 3v6l-6 10a1.5 1.5 0 0 0 1.3 2h13.4a1.5 1.5 0 0 0 1.3-2L14 9V3M7 15h10"/><path d="M10 18h.01M14 17h.01"/>',
+  chats:'<path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5a9.5 9.5 0 0 1 19 0Z"/><path d="M7 9h9M7 13h6"/>',
   projects:'<path d="M3 8V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M3 8h18"/>',
   activity:'<path d="M3 3v18h18M6 15l4-5 4 3 6-8M16 5h4v4"/>',
   review:'<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M6 7v10M18 7v3a5 5 0 0 1-5 5H6"/>',
