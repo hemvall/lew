@@ -1,3 +1,4 @@
+import { StateGraph, Annotation, START, END } from '@langchain/langgraph';
 import { randomUUID } from 'node:crypto';
 import { validatePlan,limits,parseResult,planSchema,resultSchema,recoverMission,transition,reviewValid } from './mission-model.mjs';
 import { agentPrompt } from './agents.mjs';
@@ -42,50 +43,97 @@ export class MissionEngine {
   async run(id,planning){
     const m=await this.store.get(id);
     if(['cancelled','interrupted','interrupting'].includes(m.status))return;
-    if(planning){const cwd=await this.adapter.base(m);const output=await this.execute(m,'orchestrator',null,cwd,null,planSchema);if(!await this.boundary(m))return;let plan;try{plan=JSON.parse(output.text);}catch{throw new Error('Plan JSON absent.');}m.plan=validatePlan(plan);if(m.plan.title)m.title=m.plan.title;m.status='awaiting_plan';await this.store.save(m);await this.store.event(id,'plan',{text:'Plan proposé. Votre approbation est nécessaire.'});return;}
-    for(const task of m.tasks){
-      if(task.status==='completed')continue;if(!await this.boundary(m))return;
-      if(task.status!=='running'){
-        if(task.attempts>=m.limits.attempts)throw new Error(`Nombre maximal de tentatives atteint : ${task.title}.`);
-        task.attempts=(task.attempts||0)+1;
-      }
-      if(task.dependsOn.some(d=>m.tasks.find(t=>t.id===d)?.status!=='completed'))throw new Error('Dépendance non terminée.');
-      const parent=m.tasks.find(t=>t.id===task.dependsOn[0]);const base=parent?.result?.head||m.baseHead;if(!base)throw new Error('Révision Git de départ absente.');
-      task.status='running';await this.store.save(m);
-      const dev=await this.adapter.development(m,task,base);task.workspace=dev;task.gitBase=base;await this.store.save(m);
-      let verified=false;
-      for(let round=task.round||0;round<=m.limits.correctionRounds;round++){
-        if(!await this.boundary(m))return;task.round=round;
-        if(!['review','validation'].includes(task.stage)){
+    // Mission snapshots remain authoritative in the existing durable store.
+    // LangGraph owns routing; each node persists its result before the next edge.
+    const State=Annotation.Root({cursor:Annotation()});
+    let task;
+    const route=async()=>{
+      if(!await this.boundary(m))return END;
+      if(m.status==='awaiting_plan')return END;
+      task=m.tasks.find(t=>t.status!=='completed');
+      if(!task)return 'complete';
+      if((task.round||0)>m.limits.correctionRounds)throw new Error('Validation non obtenue dans la limite de corrections.');
+      return 'prepare';
+    };
+    const graph=new StateGraph(State)
+      .addNode('plan',async()=>{
+const cwd=await this.adapter.base(m);const output=await this.execute(m,'orchestrator',null,cwd,null,planSchema);if(!await this.boundary(m))return;let plan;try{plan=JSON.parse(output.text);}catch{throw new Error('Plan JSON absent.');}m.plan=validatePlan(plan);if(m.plan.title)m.title=m.plan.title;m.status='awaiting_plan';await this.store.save(m);await this.store.event(id,'plan',{text:'Plan proposé. Votre approbation est nécessaire.'});
+        return {};
+      })
+      .addNode('prepare',async()=>{
+        if(task.status!=='running'){
+          if(task.attempts>=m.limits.attempts)throw new Error(`Nombre maximal de tentatives atteint : ${task.title}.`);
+          task.attempts=(task.attempts||0)+1;
+        }
+        if(task.dependsOn.some(d=>m.tasks.find(t=>t.id===d)?.status!=='completed'))throw new Error('Dépendance non terminée.');
+        const parent=m.tasks.find(t=>t.id===task.dependsOn[0]);
+        const base=parent?.result?.head||m.baseHead;
+        if(!base)throw new Error('Révision Git de départ absente.');
+        task.status='running';await this.store.save(m);
+        const dev=await this.adapter.development(m,task,base);
+        task.workspace=dev;task.gitBase=base;await this.store.save(m);
+        return {};
+      })
+      .addNode('development',async()=>{
+        const dev=task.workspace,base=task.gitBase,parent=m.tasks.find(t=>t.id===task.dependsOn[0]);
           const output=await this.execute(m,'developer',task,dev,task.handoff||parent?.result||null,resultSchema);const result=parseResult(output.text);
           if(result.verdict==='blocked')throw new Error(result.summary);
           const revision=await this.adapter.commit(dev,task);task.result={...result,...revision,base,commands:output.commands};task.stage='review';await this.store.save(m);
-        }
-        if(!await this.boundary(m))return;
-        const revision=task.result;
-        if(task.stage==='review'){
+
+        return {};
+      })
+      .addNode('review',async()=>{
+        const dev=task.workspace,revision=task.result,round=task.round||0;
+        await (async()=>{
           const reviewCwd=await this.adapter.isolate(m,task,'reviewer',revision.head);
           const review=parseResult((await this.execute(m,'reviewer',task,reviewCwd,task.result,resultSchema)).text);
           if(!reviewValid(revision,await this.adapter.snapshot(dev)))throw new Error('La révision a changé pendant la revue. Revue invalidée.');
           const reviewed=await this.adapter.snapshot(reviewCwd);if(reviewed.head!==revision.head||reviewed.files.length)throw new Error('Le relecteur a modifié sa révision isolée. Revue invalidée.');
           task.review={...review,head:revision.head,fingerprint:revision.fingerprint};
-          if(review.verdict!=='pass'){task.handoff={...task.result,review};task.stage='development';task.round=round+1;await this.store.save(m);continue;}
+          if(review.verdict!=='pass'){task.handoff={...task.result,review};task.stage='development';task.round=round+1;await this.store.save(m);return;}
           task.stage='validation';await this.store.save(m);
-        }
-        if(!await this.boundary(m))return;
+
+        })();
+        return {};
+      })
+      .addNode('validation',async()=>{
+        const dev=task.workspace,revision=task.result,round=task.round||0;
+        await (async()=>{
         const validationCwd=await this.adapter.isolate(m,task,'validation',revision.head);
         const validationOutput=await this.execute(m,'validation',task,validationCwd,{...task.result,review:task.review},resultSchema),validation=parseResult(validationOutput.text);
         if(!reviewValid(revision,await this.adapter.snapshot(dev)))throw new Error('La révision a changé pendant la validation. Revue invalidée.');
         const validationState=await this.adapter.snapshot(validationCwd);
         if(validationState.head!==revision.head||validationState.files.length)throw new Error('La validation a modifié sa révision isolée.');
         task.validation={...validation,head:revision.head,commands:validationOutput.commands};await this.store.save(m);
-        if(validation.verdict==='pass'&&validationOutput.commands.length&&validationOutput.commands.every(c=>c.exitCode===0)){verified=true;break;}
+        if(validation.verdict==='pass'&&validationOutput.commands.length&&validationOutput.commands.every(c=>c.exitCode===0)){task.status='completed';task.stage='completed';await this.store.save(m);await this.store.event(id,'task_completed',{taskId:task.id,head:task.result.head,text:task.title});return;}
         task.handoff={...task.result,validation,commands:validationOutput.commands};task.stage='development';task.round=round+1;await this.store.save(m);
-      }
-      if(!verified)throw new Error('Validation non obtenue dans la limite de corrections.');
-      task.status='completed';task.stage='completed';await this.store.save(m);await this.store.event(id,'task_completed',{taskId:task.id,head:task.result.head,text:task.title});
-    }
-    if(!await this.boundary(m))return;m.status='ready';m.error=null;await this.store.save(m);await this.store.event(id,'ready',{text:'Revue et validation terminées. La PR attend votre décision.'});
+
+        })();
+        return {};
+      })
+      .addNode('complete',async()=>{
+        m.status='ready';m.error=null;await this.store.save(m);
+        await this.store.event(id,'ready',{text:'Revue et validation terminées. La PR attend votre décision.'});
+        return {};
+      })
+      .addConditionalEdges(START,async()=>planning?'plan':await route())
+      .addEdge('plan',END)
+      .addConditionalEdges('prepare',async()=>!await this.boundary(m)?END:['review','validation'].includes(task.stage)?task.stage:'development')
+      .addConditionalEdges('development',async()=>await this.boundary(m)?'review':END)
+      .addConditionalEdges('review',async()=>{
+        if(!await this.boundary(m))return END;
+        if((task.round||0)>m.limits.correctionRounds)throw new Error('Validation non obtenue dans la limite de corrections.');
+        return task.stage==='validation'?'validation':'development';
+      })
+      .addConditionalEdges('validation',async()=>{
+        if(task.status==='completed')return await route();
+        if(!await this.boundary(m))return END;
+        if((task.round||0)>m.limits.correctionRounds)throw new Error('Validation non obtenue dans la limite de corrections.');
+        return 'development';
+      })
+      .addEdge('complete',END)
+      .compile();
+    await graph.invoke({cursor:id},{recursionLimit:1000});
   }
   async approve(id,plan){if(this.controls.has(id))throw new Error('Action déjà en cours.');this.controls.add(id);try{const m=await this.store.get(id);if(m.status!=='awaiting_plan')throw new Error('Plan non disponible pour approbation.');m.plan=validatePlan(plan);m.tasks=m.plan.tasks.map(t=>({...t,status:'pending',attempts:0,round:0}));m.baseHead=await this.adapter.baseHead(m);m.startedAt=Date.now();m.status='running';await this.store.save(m);await this.store.event(id,'plan_approved',{plan:m.plan,baseHead:m.baseHead});this.launch(id);return m;}finally{this.controls.delete(id);}}
   async control(id,action){

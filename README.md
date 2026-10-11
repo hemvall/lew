@@ -202,3 +202,10 @@ Role contracts in `agent-instructions.mjs` are included in actual Codex turns: A
 ## Mission worker diagnostics
 
 The launch confirmation checks that Git and Codex can start on the worker. If either executable is missing, denied by the process permissions, or times out, the launch stays disabled and shows a recovery message. Use **Vérifier le worker** after correcting the worker installation or restarting Lew in an authorized terminal. The server repeats this check for mission creation requests, before persisting a mission. This check does not verify repository permissions, model quotas, or the Codex account; the existing account check still applies. It never grants permissions automatically.
+
+
+## LangGraph mission orchestration
+
+Missions use LangGraph.js to route planning, workspace preparation, development, review, validation, and completion. Failed review or validation returns to development within the configured correction limit. Codex remains the execution adapter; npm remains the package manager.
+
+The existing mission store remains authoritative for persistent snapshots, approval, pause/cancel controls, and restart recovery. This integration does not use LangGraph native checkpointers or `interrupt()` yet: resumption reconstructs graph routing from the saved task stage. Closing the browser still leaves the server worker running. External Codex/Git actions are not guaranteed exactly once across a process crash.

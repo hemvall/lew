@@ -110,3 +110,23 @@ test('a failed interrupt request restores the active mission state',async()=>{
   await assert.rejects(h.engine.control(m.id,'interrupt'),/Worker unavailable/);
   assert.equal(h.get().status,'running');release();await finish(h);assert.equal(h.get().status,'ready');
 });
+
+test('LangGraph routes dependent tasks in order and bases the next task on the verified commit',async()=>{
+  const h=harness(),bases=[];
+  const sequential={summary:'Two tasks',tasks:[plan.tasks[0],{...plan.tasks[0],id:'second',dependsOn:['code']}]};
+  h.adapter.development=async(m,t,base)=>{bases.push(base);return {cwd:'dev'};};
+  const m=await h.engine.create({objective:'Build',criteria:'Pass'},{id:'p'},h.profiles);
+  await finish(h);await h.engine.approve(m.id,sequential);await finish(h);
+  assert.equal(h.get().status,'ready');assert.deepEqual(bases,['base','sha']);
+  assert.deepEqual(h.calls,['orchestrator','developer','reviewer','validation','developer','reviewer','validation']);
+});
+test('a new LangGraph engine resumes persisted review after server recovery without repeating development',async()=>{
+  const h=harness();let release,started;const start=new Promise(r=>started=r),normal=h.adapter.execute;
+  h.adapter.execute=async(w,p,...args)=>{if(p.role==='developer'){started();await new Promise(r=>release=r);}return normal(w,p,...args);};
+  const m=await h.engine.create({objective:'Build',criteria:'Pass'},{id:'p'},h.profiles);
+  await finish(h);await h.engine.approve(m.id,plan);await start;
+  await h.engine.control(m.id,'pause');release();await finish(h);
+  h.engine=new MissionEngine(h.store,h.adapter);await h.engine.recover();
+  await h.engine.control(m.id,'resume');await finish(h);
+  assert.equal(h.get().status,'ready');assert.equal(h.calls.filter(r=>r==='developer').length,1);
+});
