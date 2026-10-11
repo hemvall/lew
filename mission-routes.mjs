@@ -1,3 +1,4 @@
+import {workerPreflight,requireWorkerReady} from './worker-preflight.mjs';
 import { builtinAvatars,builtinProfiles,routeProfiles } from './agent-catalog.mjs';
 import { legacyInstructions } from './agent-instructions.mjs';
 import { randomUUID } from 'node:crypto';
@@ -30,6 +31,8 @@ export function missionRoutes(deps){
     if(!/^\/api\/(agents|avatars|missions|models)(\/|$)/.test(path))return null;
     if(path==='/api/models'&&req.method==='GET')return {models:await models()};
     if(path==='/api/agents'&&req.method==='GET'&&storageState&&!storageState().ready)return {agents:builtinProfiles,avatars:builtinAvatars,persisted:false,storage:storageState()};
+    if(path==='/api/missions/preflight'&&req.method==='GET')return (deps.workerPreflight||workerPreflight)();
+    if(path==='/api/missions'&&req.method==='POST')await requireWorkerReady(deps.workerPreflight||workerPreflight);
     await ready();
     if(path==='/api/agents'&&req.method==='GET')return {agents:await all('SELECT * FROM agents ORDER BY name'),avatars:await all('SELECT * FROM avatars ORDER BY created'),persisted:true};
     if(path==='/api/avatars'&&req.method==='POST'){const b=await body(req),avatar=importAvatar(b.source,b.name),id=randomUUID();await query('INSERT INTO avatars(id,name,definition) VALUES(?,?,?)',id,avatar.name,JSON.stringify(avatar.definition));return {id,...avatar};}
