@@ -213,3 +213,7 @@ The existing mission store remains authoritative for persistent snapshots, appro
 Routine agent work runs in the project sandbox with network access for builds and tests. Additional permissions appear as persistent desktop notifications in the lower-left corner, with approve/decline controls and optional session-scoped consent. Dismissing a card leaves the request pending and accessible through the notification counter. A soft chime plays once per new request after the browser has received a user interaction.
 
 The desktop supports up to 24 local web widgets. Add a name and HTTP(S) URL, then open it in a Lew window; edit or remove it with the widget menu. External sites are sandboxed and an external-tab link remains available for sites that disallow framing. Widgets persist in this browser and work independently of database availability. Database queries explicitly target the private `lew` schema instead of relying on connection startup search paths.
+
+### Personnaliser le bureau
+
+Ouvrez **Réglages** depuis la barre de menus ou le dock (raccourci `Cmd/Ctrl + ,`). Thème clair/sombre/automatique, accent, fond du bureau, densité, animations, transparence et son des autorisations sont enregistrés dans ce navigateur et synchronisés entre les fenêtres Lew. La réduction des animations du système reste prioritaire. Rétablir les réglages ne supprime ni les widgets ni les briefs. Les menus de sélection utilisent le rendu natif personnalisable lorsque le navigateur le permet, avec un menu natif clair/sombre en repli.

@@ -1,3 +1,4 @@
+import {motionReduced} from './preferences.js';
 import {webURL} from './web-widgets.js';
 import {applications,applicationFor,clampWindow} from './os-model.js';
 import {routeFor,parseRoute} from './navigation-model.js';
@@ -6,7 +7,7 @@ export const embeddedApplication=new URLSearchParams(location.search).get('app')
 const windows=new Map();let layer=20;
 function hideWindow(win,close=false){
   const finish=()=>{if(close){win.element.remove();windows.delete(win.app.id);}else win.element.hidden=true;syncDock();};
-  if(matchMedia('(prefers-reduced-motion:reduce)').matches){finish();return;}
+  if(motionReduced()){finish();return;}
   win.element.getAnimations().forEach(a=>a.cancel());
   const animation=win.element.animate([{opacity:1,transform:'none'},{opacity:0,transform:close?'translateY(8px) scale(.97)':'translateY(28px) scale(.94)'}],{duration:190,easing:'cubic-bezier(.4,0,1,1)'});animation.onfinish=finish;
 }
@@ -42,7 +43,7 @@ export function openApplication(route){
   }
   if([...windows.values()].some(w=>w!==win&&!w.element.hidden&&w.element.classList.contains('maximized'))){win.element.classList.add('maximized');win.element.querySelector('[data-action=maximize]').setAttribute('aria-label','Restaurer '+app.name);}
   win.element.getAnimations().forEach(a=>a.cancel());
-  const wasHidden=win.element.hidden;win.element.hidden=false;if(wasHidden&&!matchMedia('(prefers-reduced-motion:reduce)').matches)win.element.animate([{opacity:0,transform:'translateY(14px) scale(.97)'},{opacity:1,transform:'none'}],{duration:300,easing:'cubic-bezier(.22,1,.36,1)'});
+  const wasHidden=win.element.hidden;win.element.hidden=false;if(wasHidden&&!motionReduced())win.element.animate([{opacity:0,transform:'translateY(14px) scale(.97)'},{opacity:1,transform:'none'}],{duration:300,easing:'cubic-bezier(.22,1,.36,1)'});
   win.element.style.zIndex=++layer;document.querySelectorAll('.os-window').forEach(w=>w.classList.toggle('focused',w===win.element));syncDock();
 }
 export function showDesktop(){windows.forEach(w=>w.element.hidden=true);syncDock();}

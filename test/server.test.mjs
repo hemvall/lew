@@ -20,7 +20,7 @@ test('API access is gated and Supabase configuration never leaks to the browser'
     assert.equal(data.attention.complete,false);assert.deepEqual(data.attention.items,[]);
     assert.deepEqual(data.catalog,{projectsComplete:false,workspacesComplete:false,complete:false});
     assert.equal((await fetch(url+'/attention-model.js')).status,200);
-    for(const file of ['studio-ui.js','studio-model.js','studio-visuals.js','studio.css','os-model.js','os-windows.js','os-windows.css','web-widgets.js','approval-notifications.js','approval-notifications.css'])assert.equal((await fetch(url+'/'+file)).status,200);
+    for(const file of ['studio-ui.js','studio-model.js','studio-visuals.js','studio.css','os-model.js','os-windows.js','os-windows.css','preferences.js','ui-polish.css','web-widgets.js','approval-notifications.js','approval-notifications.css'])assert.equal((await fetch(url+'/'+file)).status,200);
     const shell=await fetch(url);assert.match(shell.headers.get('content-security-policy'),/frame-ancestors 'self'/);assert.match(shell.headers.get('content-security-policy'),/frame-src 'self' https: http:/);
     for(const name of ['draft-store','navigation-model','resume-model','markdown','verification-model'])assert.equal((await fetch(url+'/'+name+'.js')).status,200);
     assert.equal((await fetch(url+'/.env')).status,404);

@@ -244,7 +244,7 @@ const server=http.createServer(async(req,res)=>{
   allowed['/os-model.js']='os-model.js';
   allowed['/os-windows.js']='os-windows.js';
   allowed['/os-windows.css']='os-windows.css';
-  for(const file of ['web-widgets.js','approval-notifications.js','approval-notifications.css'])allowed['/'+file]=file;
+  for(const file of ['preferences.js','ui-polish.css','web-widgets.js','approval-notifications.js','approval-notifications.css'])allowed['/'+file]=file;
   for(const name of ['draft-store','navigation-model','resume-model','markdown','verification-model'])allowed[`/${name}.js`]=`${name}.js`;
   if(!allowed[url.pathname]) {res.writeHead(404);return res.end();}
   res.setHeader('Content-Security-Policy',"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' https: http:; connect-src 'self'; frame-src 'self' https: http:; frame-ancestors 'self'");

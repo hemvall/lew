@@ -1,3 +1,4 @@
+import {initPreferences,motionReduced} from './preferences.js';
 import {readWebWidgets,saveWebWidgets,webWidgetsHTML,webURL} from './web-widgets.js';
 import {approvalNotifications} from './approval-notifications.js';
 import { icon } from './icons.js';
@@ -28,7 +29,7 @@ let contextMenuAbort=new AbortController();
 const drafts=createDraftStore(()=>localStorage),eventCache=new Map(),resumeExpanded=new Set();let streamController,streamWorkspace,streamHealthy=false,streamRetry,stateLoaded=false;
 const labels={idle:'Prêt',running:'En cours',waiting:'Votre accord',completed:'Terminé',interrupted:'Interrompu',failed:'À vérifier'};
 let lastMotionKey;
-const reducedMotion=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+const reducedMotion=motionReduced;
 function animateView(){
   const key=[view,projectId,workspaceId,selectedPR].join(':');
   if(key===lastMotionKey)return;lastMotionKey=key;
@@ -38,7 +39,7 @@ function animateView(){
   if(view==='home')document.querySelectorAll('.desktop-widget').forEach((node,i)=>node.animate([{opacity:0,transform:'translateY(16px)'},{opacity:1,transform:'translateY(0)'}],{duration:420,delay:i*35,easing:'cubic-bezier(.22,1,.36,1)',fill:'backwards'}));
 }
 let accessToken=sessionStorage.getItem('lew-token')||'';
-if(localStorage.getItem('lew-theme')!=='light') document.documentElement.classList.add('dark');
+const preferences=initPreferences({modal,toast});
 async function api(path,method='GET',data){
   const response=await fetch('/api/'+path,{method,headers:{...(data?{'Content-Type':'application/json'}:{}),...(accessToken?{Authorization:'Bearer '+accessToken}:{})},body:data?JSON.stringify(data):undefined});
   const result=await response.json();if(!response.ok){if(response.status===401) showAccess();throw new Error(result.error||'Une erreur est survenue');}return result;
@@ -264,7 +265,7 @@ async function refresh(){
   }finally{refreshBusy=false;}
 }
 
-$('#close-modal').onclick=closeModal;$('#modal').addEventListener('click',e=>{if(e.target===$('#modal'))closeModal();});$('#add-project').onclick=addProject;$('#account-button').onclick=showAccount;$('#theme').onclick=()=>{document.documentElement.classList.toggle('dark');localStorage.setItem('lew-theme',document.documentElement.classList.contains('dark')?'dark':'light');};$('#menu').onclick=()=>setSidebar(!$('#sidebar').classList.contains('open'));$('#sidebar-scrim').onclick=()=>{setSidebar(false);$('#menu').focus();};$('#sidebar-project-query').oninput=e=>{sidebarQuery=e.target.value;renderSidebarProjects();bindNavigation();};matchMedia('(max-width: 800px)').addEventListener('change',()=>setSidebar(false));document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#modal').open&&$('#sidebar').classList.contains('open')){setSidebar(false);$('#menu').focus();}});setSidebar(false);document.querySelectorAll('button[data-view]').forEach(b=>b.onclick=()=>navigate(b.dataset.view));
+$('#close-modal').onclick=closeModal;$('#modal').addEventListener('click',e=>{if(e.target===$('#modal'))closeModal();});$('#add-project').onclick=addProject;$('#account-button').onclick=showAccount;$('#theme').onclick=preferences.open;$('#menu').onclick=()=>setSidebar(!$('#sidebar').classList.contains('open'));$('#sidebar-scrim').onclick=()=>{setSidebar(false);$('#menu').focus();};$('#sidebar-project-query').oninput=e=>{sidebarQuery=e.target.value;renderSidebarProjects();bindNavigation();};matchMedia('(max-width: 800px)').addEventListener('change',()=>setSidebar(false));document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#modal').open&&$('#sidebar').classList.contains('open')){setSidebar(false);$('#menu').focus();}});setSidebar(false);document.querySelectorAll('button[data-view]').forEach(b=>b.onclick=()=>navigate(b.dataset.view));
 function globalSearch(scopedProject=''){
   modal('Retrouver un chat',`<div class="search-dialog-filters"><label class="field"><span>Rechercher</span><input type="search" id="global-search" placeholder="Titre, projet ou branche…" maxlength="500" autocomplete="off" aria-controls="global-results" autofocus></label><label class="field"><span>Projet</span><select id="global-project"><option value="">Tous les projets</option>${projectOptions(scopedProject)}</select></label></div><p class="search-help">↓ ↑ pour parcourir · Entrée pour ouvrir · Échap pour fermer</p><div id="global-results" class="search-results"></div>`);
   const update=()=>{
@@ -287,7 +288,7 @@ function globalSearch(scopedProject=''){
   update();$('#global-search').focus();
 }
 
-$('#search-button').onclick=()=>globalSearch();$('#desktop-search').onclick=()=>globalSearch();$('#dock-account').onclick=showAccount;$('#desktop-theme').onclick=()=>$('#theme').click();$('#expand-window').onclick=()=>document.body.classList.toggle('window-maximized');
+$('#search-button').onclick=()=>globalSearch();$('#desktop-search').onclick=()=>globalSearch();$('#dock-account').onclick=showAccount;$('#dock-settings').onclick=preferences.open;$('#desktop-theme').onclick=()=>$('#theme').click();$('#expand-window').onclick=()=>document.body.classList.toggle('window-maximized');
 function updateClock(){$('#desktop-clock').textContent=new Intl.DateTimeFormat('fr-FR',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date());}updateClock();setInterval(updateClock,30000);document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();globalSearch();}});
 
 function projectBrowser(){return `<div class="eyebrow">VOTRE ESPACE</div><div class="intro"><div><h1>Vos projets.</h1><p>Retrouvez vos favoris et reprenez le dernier contexte ouvert.</p></div><button class="primary" data-add-project>Importer depuis GitHub</button></div><div class="project-browser-filters"><input id="project-query" aria-label="Rechercher un projet" placeholder="Rechercher un projet ou un repo…" value="${escape(projectQuery)}"><div class="segmented">${[['all','Tous'],['favorites','Favoris'],['recent','Récents']].map(([k,l])=>`<button data-project-mode="${k}" class="${projectMode===k?'active':''}">${l}</button>`).join('')}</div></div><div id="project-cards" class="project-grid">${projectCards()}</div>`;}

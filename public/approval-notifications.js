@@ -4,13 +4,14 @@ export function approvalNotifications({api,openWorkspace,document:doc=document})
   const reopen=doc.createElement('button');reopen.className='approval-reopen';reopen.hidden=true;host.append(reopen);
   const make=(tag,className,text)=>{const el=doc.createElement(tag);el.className=className;if(text)el.textContent=text;return el;};
   function chime(){
+    if(doc.documentElement?.dataset.sound==='off'){pendingSound=false;return;}
     if(!audio||audio.state!=='running'){pendingSound=true;return;}
     pendingSound=false;
     for(const [frequency,delay] of [[660,0],[880,.12]]){const tone=audio.createOscillator(),gain=audio.createGain(),start=audio.currentTime+delay;tone.type='sine';tone.frequency.value=frequency;gain.gain.setValueAtTime(0,start);gain.gain.linearRampToValueAtTime(.055,start+.025);gain.gain.exponentialRampToValueAtTime(.001,start+.35);tone.connect(gain);gain.connect(audio.destination);tone.start(start);tone.stop(start+.36);}
   }
   async function unlock(){try{const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)return;audio||=new Audio();await audio.resume();if(pendingSound)chime();}catch{}}
   doc.addEventListener('pointerdown',unlock);doc.addEventListener('keydown',unlock);
-  function remove(key){const card=cards.get(key);if(!card)return;cards.delete(key);if(matchMedia('(prefers-reduced-motion:reduce)').matches){card.remove();return;}card.classList.add('leaving');setTimeout(()=>card.remove(),180);}
+  function remove(key){const card=cards.get(key);if(!card)return;cards.delete(key);if(doc.documentElement?.dataset.motion==='reduced'||matchMedia('(prefers-reduced-motion:reduce)').matches){card.remove();return;}card.classList.add('leaving');setTimeout(()=>card.remove(),180);}
   function counter(items){const count=items.filter(item=>dismissed.has(item.key)).length;reopen.hidden=!count;reopen.textContent=`${count} autorisation${count>1?'s':''} en attente`;} 
   let current=[];
   reopen.onclick=()=>{dismissed.clear();update(current);};
