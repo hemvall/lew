@@ -23,13 +23,13 @@ test('storage retries, coalesces probes, and never interrupts new runs after rec
     now+=5001;await Promise.all([storage.initializeStorage(),storage.initializeStorage()]);
     assert.equal(client.calls.length,2);assert.equal(storage.storageState().ready,true);
     assert.equal(storage.storageState().error,null);
-    assert.deepEqual(await storage.all('SELECT * FROM projects WHERE id=?','project'),[{id:'project'}]);
-    assert.equal(client.calls.at(-1).sql,'SELECT * FROM projects WHERE id=$1');
+    assert.deepEqual(await storage.all('SELECT * FROM lew.projects WHERE id=?','project'),[{id:'project'}]);
+    assert.equal(client.calls.at(-1).sql,'SELECT * FROM lew.projects WHERE id=$1');
     assert.deepEqual(client.calls.at(-1).args,['project']);
     client.emit('error',new Error('idle socket failed'));assert.equal(storage.storageState().ready,false);
     now+=5001;await storage.initializeStorage();assert.equal(storage.storageState().ready,true);
     assert.equal(client.calls.at(-1).sql,'SELECT 1');
-    assert.equal(client.calls.filter(c=>c.sql.startsWith('UPDATE workspaces')).length,2); // failed attempt, then first successful recovery only
+    assert.equal(client.calls.filter(c=>c.sql.startsWith('UPDATE lew.workspaces')).length,2); // failed attempt, then first successful recovery only
     await storage.closeStorage();
   }finally{pg.Pool=originalPool;if(originalUrl===undefined)delete process.env.DATABASE_URL;else process.env.DATABASE_URL=originalUrl;}
 });

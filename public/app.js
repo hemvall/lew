@@ -1,8 +1,9 @@
+import {readWebWidgets,saveWebWidgets,webWidgetsHTML,webURL} from './web-widgets.js';
 import {approvalNotifications} from './approval-notifications.js';
 import { icon } from './icons.js';
 import { studioUI } from './studio-ui.js';
 import {applicationFor} from './os-model.js';
-import {embeddedApplication,openApplication,showDesktop,initApplications,notifyApplicationRoute,appLauncher,syncDock} from './os-windows.js';
+import {embeddedApplication,openWebWidget,openApplication,showDesktop,initApplications,notifyApplicationRoute,appLauncher,syncDock} from './os-windows.js';
 import { missionResult,missionSummary,watchMissionPlans } from './workspace-model.js';
 let agentCatalogPromise;
 import { mountAvatars } from './avatar-view.js';
@@ -21,6 +22,7 @@ let state={projects:[],workspaces:[],attention:{items:[],complete:false},storage
 let usageInfo=null,usageBusy=false,missionSelection=null,launchProjectId=null,launchBrief=null;
 let projectQuery='',projectMode='all',selectedPR=null,prData=null,prTab='overview',prRequest=0;
 let chatSort='recent',sidebarQuery='';
+let webWidgets=readWebWidgets(localStorage);
 const expandedProjects=new Map();
 let contextMenuAbort=new AbortController();
 const drafts=createDraftStore(()=>localStorage),eventCache=new Map(),resumeExpanded=new Set();let streamController,streamWorkspace,streamHealthy=false,streamRetry,stateLoaded=false;
@@ -128,7 +130,7 @@ function render(){
   else if(view==='home') {
     const total=state.workspaces.length, completed=state.workspaces.filter(w=>w.status==='completed').length;
     content.innerHTML=`<div class="desktop-widgets"><section class="desktop-widget widget-projects"><div class="widget-title"><span class="widget-symbol purple">${icon('projects')}</span>Projets<button data-add-project aria-label="Ajouter un projet">+</button></div><div class="widget-numbers"><div><strong>${state.projects.length}</strong><small>projets connectés</small></div><div><strong>${total}</strong><small>espaces de travail</small></div></div><div class="widget-project-links">${sortedProjects(state.projects).slice(0,3).map(p=>`<button data-project="${escape(p.id)}"><span class="project-icon">${escape(p.name[0].toUpperCase())}</span><span>${escape(p.name)}</span><span>›</span></button>`).join('')||'<p>Votre prochain projet commence ici.</p>'}</div></section><button class="desktop-widget widget-activity" data-view="activity"><div class="widget-title"><span class="widget-symbol blue">${icon('activity')}</span>Activité</div><div class="widget-numbers"><div><strong>${active}</strong><small>agents au travail</small></div><div><strong>${completed}</strong><small>tâches terminées</small></div></div><div class="activity-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><p>${active?'Le travail continue sur votre PC.':'Prêt pour votre prochaine instruction.'}</p></button><button class="desktop-widget widget-review" data-view="review"><div class="widget-title"><span class="widget-symbol pink">${icon('review')}</span>À traiter</div><div class="widget-ring ${review?'attention':''}"><strong>${review}</strong></div><p>${review?'tâche(s) demandent votre attention':'Tout est en ordre'}</p></button><button class="desktop-widget widget-storage" id="desktop-storage"><div class="widget-title"><span class="widget-symbol green">${icon('database')}</span>Supabase</div><div class="storage-app"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0"/></svg></div><p>Stockage du contexte<br><strong class="${state.storage.ready?'good':'pending'}">${state.storage.ready?'Connecté':state.storage.configured?'Indisponible':'À configurer'}</strong></p></button>${codexWidget()}<section class="desktop-recent"><div class="desktop-heading"><h1>${state.projects.length?'Reprendre le fil.':'Bienvenue chez lew.'}</h1><p>${state.projects.length?'Vos projets, au bon endroit.':'Un bureau pour vos projets et vos agents.'}</p></div>${state.workspaces.length?rows(filterChats(state.workspaces,state.projects).slice(0,3)):`<button class="desktop-widget start-project" data-add-project><span class="project-icon">${icon('plus')}</span><span><strong>${state.projects.length?'Ajouter un projet':'Votre premier projet'}</strong><small>Connecter un repo GitHub</small></span><span>${icon('arrow')}</span></button>`}</section></div>`;
-    content.insertAdjacentHTML('afterbegin',appLauncher());
+    content.insertAdjacentHTML('afterbegin',appLauncher());content.insertAdjacentHTML('beforeend',webWidgetsHTML(webWidgets,escape));bindWebWidgets();
     $('.widget-review .widget-ring strong').textContent=attentionCount();
     $('.widget-review p').textContent=!state.attention.complete?'Actualisation incomplète':review?`${review} décision(s) demandent votre attention`:'Tout est en ordre';
     $('.widget-review').setAttribute('aria-label',`À traiter : ${attentionCount()} · ${$('.widget-review p').textContent}`);
@@ -378,4 +380,16 @@ async function paintAgentIdentity(w,events=eventCache.get(w?.id)?.events||[]){
  try{agentCatalogPromise||=api('agents').catch(e=>{agentCatalogPromise=null;throw e;});const catalog=await agentCatalogPromise;if(view!=='workspace'||workspaceId!==w.id)return;const profile=w.agent_profile||catalog.agents.find(p=>p.active&&p.role==='developer');if(!profile)return;const hydrated={...profile,avatar:profile.avatar||catalog.avatars.find(a=>a.id===profile.avatar_id)};
  const head=$('.conversation-head'),old=head.querySelector('.conversation-avatar')||head.firstElementChild;if(!old?.hasAttribute('data-avatar-profile')){const avatar=document.createElement('div');avatar.className='agent-avatar conversation-avatar';old.replaceWith(avatar);}const node=head.querySelector('.conversation-avatar');node.dataset.avatarProfile=profile.id;node.dataset.agentState=w.status==='running'?'running':w.status==='waiting'?'awaiting_approval':w.status==='failed'?'error':w.status==='completed'?'completed':'idle';node.setAttribute('aria-label',profile.name+' · '+taskLabel(w));head.querySelector('.conversation-identity strong').textContent=profile.name;mountAvatars(head,[hydrated]);
  }catch(error){console.warn('Avatar indisponible',error.message);}
+}
+
+function bindWebWidgets(){
+  $('#add-web-widget').onclick=()=>editWebWidget();
+  document.querySelectorAll('[data-web-widget]').forEach(button=>button.onclick=()=>{try{openWebWidget(webWidgets.find(w=>w.id===button.dataset.webWidget));}catch(e){toast(e.message);}});
+  document.querySelectorAll('[data-edit-web-widget]').forEach(button=>button.onclick=()=>editWebWidget(webWidgets.find(w=>w.id===button.dataset.editWebWidget)));
+}
+function editWebWidget(widget){
+  modal(widget?'Modifier le widget':'Ajouter une page web',`<form id="web-widget-form"><label class="field">Nom<input name="name" required maxlength="80" value="${escape(widget?.name||'')}" placeholder="Mon dashboard"></label><label class="field">Adresse web<input name="url" type="url" required maxlength="2048" value="${escape(widget?.url||'')}" placeholder="https://exemple.fr"></label><p class="muted">La page s’ouvre dans Lew. Si le site bloque cet affichage, vous pourrez l’ouvrir dans un onglet.</p><p id="web-widget-error" role="alert"></p><div class="form-actions">${widget?'<button type="button" id="delete-web-widget" class="secondary">Supprimer</button>':''}<button class="primary">Enregistrer</button></div></form>`);
+  const commit=items=>{saveWebWidgets(localStorage,items);webWidgets=items;closeModal();render();};
+  $('#web-widget-form').onsubmit=event=>{event.preventDefault();try{const data=new FormData(event.target),url=webURL(data.get('url'));if(new URL(url).origin===location.origin)throw new Error('Choisissez un site externe au bureau Lew.');if(!widget&&webWidgets.length>=24)throw new Error('Vous pouvez ajouter jusqu’à 24 widgets.');const next={id:widget?.id||crypto.randomUUID(),name:String(data.get('name')).trim(),url};if(!next.name)throw new Error('Donnez un nom au widget.');commit(widget?webWidgets.map(w=>w.id===widget.id?next:w):[...webWidgets,next]);}catch(e){$('#web-widget-error').textContent=e.message;}};
+  $('#delete-web-widget')?.addEventListener('click',()=>{try{commit(webWidgets.filter(w=>w.id!==widget.id));}catch(e){$('#web-widget-error').textContent=e.message;}});
 }
