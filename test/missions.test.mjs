@@ -4,12 +4,22 @@ import { importAvatar,validateProfile,defaults } from '../agents.mjs';
 import { MissionEngine } from '../missions.mjs';
 const plan={summary:'Plan',tasks:[{id:'code',title:'Code',instructions:'Implement',expectedResult:'Tests pass',dependsOn:[]}]};
 const result=verdict=>JSON.stringify({summary:'Done',verdict,findings:[],tests:['node --test'],unresolved:[]});
+test('plan IDs allow agent-generated uppercase identifiers while rejecting unsafe and duplicate values',()=>{
+  const uppercase={summary:'Plan',tasks:[{...plan.tasks[0],id:'T01'},{...plan.tasks[0],id:'T02',dependsOn:['T01']}]};assert.deepEqual(validatePlan(uppercase),uppercase);
+  for(const id of ['../task','task/name','-task',12,'T'.repeat(41)])assert.throws(()=>validatePlan({...plan,tasks:[{...plan.tasks[0],id}]}));
+  assert.throws(()=>validatePlan({...uppercase,tasks:[uppercase.tasks[0],uppercase.tasks[0]]}));
+});
 test('plans reject cycles, unknown dependencies, duplicate IDs and implicit Git bases',()=>{assert.deepEqual(validatePlan(plan),plan);for(const p of [{...plan,tasks:[{...plan.tasks[0],dependsOn:['code']}]},{...plan,tasks:[plan.tasks[0],{...plan.tasks[0],id:'test',dependsOn:[]}]},{...plan,tasks:[plan.tasks[0],plan.tasks[0]]}])assert.throws(()=>validatePlan(p));});
 test('limits, transitions and restart recovery preserve completed work',()=>{assert.throws(()=>limits({concurrency:2}));assert.throws(()=>limits({attempts:0}));assert.equal(transition('running','pause'),'paused');assert.throws(()=>transition('ready','resume'));assert.deepEqual(recoverMission({status:'running',tasks:[{status:'completed'},{status:'running'}]}),{status:'interrupted',activeWorkspace:null,tasks:[{status:'completed'},{status:'interrupted'}]});assert.equal(reviewValid({head:'a',fingerprint:'b'},{head:'a',fingerprint:'changed'}),false);});
 test('avatar imports reject malformed, duplicate, oversized and unsupported definitions',()=>{for(const text of ['{}','{"schemaVersion":1,"schemaVersion":2}', 'x'.repeat(262145),'{"schemaVersion":500}'])assert.throws(()=>importAvatar(text,'Avatar'));});
 test('profile sandbox and model choices are enforced',()=>{assert.throws(()=>validateProfile({...defaults[0],config:{...defaults[0].config,sandbox:'workspace-write'}}));assert.throws(()=>validateProfile({...defaults[1],config:{...defaults[1].config,model:'invented'}}));assert.equal(validateProfile(defaults[1]).config.sandbox,'workspace-write');});
 function harness(overrides={}){let current;const events=[],calls=[];const store={get:async()=>structuredClone(current),list:async()=>current?[structuredClone(current)]:[],save:async m=>{const next=structuredClone(m);if(current&&(current.version||0)!==(m.version||0))next.status=current.status;next.version=(current?.version||0)+1;current=next;m.status=next.status;m.version=next.version;},event:async(...v)=>events.push(v),execution:async()=>{}};let count=0;const adapter={base:async()=>({cwd:'base'}),baseHead:async()=> 'base',workspace:async()=>({id:'w'+count++}),development:async()=>({cwd:'dev'}),isolate:async(m,t,r,h)=>({cwd:r,head:h}),snapshot:async ctx=>({head:'sha',fingerprint:'fingerprint',files:[]}),commit:async()=>({head:'sha',fingerprint:'fingerprint',files:[],changedFiles:['a.js']}),interrupt:async()=>{},execute:async(w,p,prompt,schema)=>{calls.push(p.role);return {text:p.role==='orchestrator'?JSON.stringify(plan):result('pass'),commands:p.role==='validation'?[{command:'node --test',exitCode:0}]:[]};},...overrides};const engine=new MissionEngine(store,adapter);const profiles=Object.fromEntries(defaults.map(p=>[p.role,structuredClone(p)]));return {engine,store,adapter,calls,profiles,get:()=>current,events};}
 async function finish(h){await h.engine.running.get(h.get().id);}
+test('resume recovers a completed valid planning result without another agent run',async()=>{
+  const h=harness();const m=await h.engine.create({objective:'Build',criteria:'Pass'},{id:'p'},h.profiles);await finish(h);
+  const blocked=await h.store.get(m.id);blocked.status='blocked';blocked.plan=null;blocked.error='Identifiant de tâche invalide ou dupliqué.';blocked.executions.at(-1).result.text=JSON.stringify({summary:'Recovered',tasks:[{...plan.tasks[0],id:'T01'}]});await h.store.save(blocked);
+  await h.engine.control(m.id,'resume');await finish(h);assert.equal(h.get().status,'awaiting_plan');assert.equal(h.get().plan.tasks[0].id,'T01');assert.deepEqual(h.calls,['orchestrator']);assert.equal(h.get().error,null);
+});
 test('real orchestration stops at plan approval, snapshots profiles, then verifies exact revision',async()=>{const h=harness();const m=await h.engine.create({objective:'Build',criteria:'Pass'}, {id:'p',name:'Project'},h.profiles);h.profiles.developer.instructions='CHANGED';await finish(h);assert.equal(h.get().status,'awaiting_plan');assert.deepEqual(h.calls,['orchestrator']);assert.notEqual(h.get().profiles.developer.instructions,'CHANGED');await h.engine.approve(m.id,plan);await finish(h);assert.equal(h.get().status,'ready');assert.deepEqual(h.calls,['orchestrator','developer','reviewer','validation']);assert.equal(h.get().tasks[0].validation.head,'sha');});
 test('changed Git revisions invalidate review and never reach delivery',async()=>{const h=harness({snapshot:async()=>({head:'different',fingerprint:'fingerprint',files:[]})});const m=await h.engine.create({objective:'Build',criteria:'Pass'},{id:'p'},h.profiles);await finish(h);await h.engine.approve(m.id,plan);await finish(h);assert.equal(h.get().status,'blocked');assert.match(h.get().error,/invalidée/);assert.equal(h.calls.includes('validation'),false);});
 test('correction limit stops a reviewer loop',async()=>{const h=harness();h.adapter.execute=async(w,p)=>{h.calls.push(p.role);return {text:p.role==='orchestrator'?JSON.stringify(plan):result(p.role==='reviewer'?'changes_required':'pass'),commands:[]};};const m=await h.engine.create({objective:'Build',criteria:'Pass',limits:{correctionRounds:1}},{id:'p'},h.profiles);await finish(h);await h.engine.approve(m.id,plan);await finish(h);assert.equal(h.get().status,'blocked');assert.equal(h.calls.filter(x=>x==='developer').length,2);});
@@ -109,4 +119,40 @@ test('a failed interrupt request restores the active mission state',async()=>{
   await finish(h);await h.engine.approve(m.id,plan);await startedPromise;
   await assert.rejects(h.engine.control(m.id,'interrupt'),/Worker unavailable/);
   assert.equal(h.get().status,'running');release();await finish(h);assert.equal(h.get().status,'ready');
+});
+
+test('LangGraph routes dependent tasks in order and bases the next task on the verified commit',async()=>{
+  const h=harness(),bases=[];
+  const sequential={summary:'Two tasks',tasks:[plan.tasks[0],{...plan.tasks[0],id:'second',dependsOn:['code']}]};
+  h.adapter.development=async(m,t,base)=>{bases.push(base);return {cwd:'dev'};};
+  const m=await h.engine.create({objective:'Build',criteria:'Pass'},{id:'p'},h.profiles);
+  await finish(h);await h.engine.approve(m.id,sequential);await finish(h);
+  assert.equal(h.get().status,'ready');assert.deepEqual(bases,['base','sha']);
+  assert.deepEqual(h.calls,['orchestrator','developer','reviewer','validation','developer','reviewer','validation']);
+});
+test('a new LangGraph engine resumes persisted review after server recovery without repeating development',async()=>{
+  const h=harness();let release,started;const start=new Promise(r=>started=r),normal=h.adapter.execute;
+  h.adapter.execute=async(w,p,...args)=>{if(p.role==='developer'){started();await new Promise(r=>release=r);}return normal(w,p,...args);};
+  const m=await h.engine.create({objective:'Build',criteria:'Pass'},{id:'p'},h.profiles);
+  await finish(h);await h.engine.approve(m.id,plan);await start;
+  await h.engine.control(m.id,'pause');release();await finish(h);
+  h.engine=new MissionEngine(h.store,h.adapter);await h.engine.recover();
+  await h.engine.control(m.id,'resume');await finish(h);
+  assert.equal(h.get().status,'ready');assert.equal(h.calls.filter(r=>r==='developer').length,1);
+});
+test('uncertain Codex outcomes block repeated resume instead of replaying commands',async()=>{
+ const h=harness(),normal=h.adapter.execute;h.adapter.recoverExecution=async()=>null;
+ h.adapter.execute=async(w,p,...args)=>{if(p.role==='developer'){h.calls.push('developer');throw new Error('Transport lost');}return normal(w,p,...args);};
+ const m=await h.engine.create({objective:'Build',criteria:'Pass'},{id:'p'},h.profiles);await finish(h);await h.engine.approve(m.id,plan);await finish(h);
+ for(let i=0;i<2;i++){await h.engine.control(m.id,'resume');await finish(h);assert.equal(h.get().status,'blocked');assert.match(h.get().error,/incertain/);}
+ assert.equal(h.calls.filter(r=>r==='developer').length,1);
+ h.adapter.recoverExecution=async()=>({text:result('pass'),commands:[]});await h.engine.control(m.id,'resume');await finish(h);
+ assert.equal(h.get().status,'ready');assert.equal(h.calls.filter(r=>r==='developer').length,1);
+});
+test('concurrent and repeated publish requests cannot create duplicate PRs',async()=>{
+ const h=harness();let release,start;const started=new Promise(r=>start=r);let count=0;
+ h.adapter.publish=async()=>{count++;start();await new Promise(r=>release=r);return {number:1,url:'https://example.test/pr/1'};};
+ const m=await h.engine.create({objective:'Build',criteria:'Pass'},{id:'p'},h.profiles);await finish(h);await h.engine.approve(m.id,plan);await finish(h);
+ const first=h.engine.publish(m.id);await started;await assert.rejects(h.engine.publish(m.id),/déjà en cours/);release();await first;
+ assert.equal((await h.engine.publish(m.id)).number,1);assert.equal(count,1);
 });

@@ -1,4 +1,4 @@
-import {conversation} from './workspace-model.js';
+import {conversation,missionResult,missionSummary} from './workspace-model.js';
 const short=(value,max=1800)=>{const text=String(value||'').trim();return text.length>max?text.slice(0,max)+'…':text;};
 export function workspaceResume(workspace,events,{pendingIds=[]}={}){
   const model=conversation(events,{pendingIds});
@@ -17,5 +17,5 @@ export function workspaceResume(workspace,events,{pendingIds=[]}={}){
   const blockers={failed:error?.text||'L’exécution a échoué. Consultez la conversation.',interrupted:'L’exécution a été interrompue. Son historique est conservé.',waiting:liveApproval?liveApproval.reason||liveApproval.command||'Votre autorisation est requise.':'La demande doit être actualisée avant toute décision.'};
   const nextActions={idle:'Donner votre prochaine instruction',running:'Suivre le travail de l’agent',waiting:liveApproval?'Autoriser ou refuser l’action':'Actualiser les autorisations',failed:'Examiner l’échec avant de réessayer',interrupted:'Relire le contexte et reprendre la conversation',completed:'Relire les changements et préparer la livraison'};
   const nextAction=workspace.mission_id&&!['running','waiting'].includes(workspace.status)?'Revenir à la mission pour décider de la suite':nextActions[workspace.status]||'Consulter la conversation';
-  return {objective:short(workspace.mission_context?.objective||workspace.title,500),lastInstruction:short(lastInstruction?.data.text),latestResult:short(final?.text,2600),decisions:decisions.slice(-4),blocker:short(blockers[workspace.status],1000),nextAction,updatedAt:events.at(-1)?.created||null};
+  return {objective:workspace.mission_id?missionSummary(workspace.mission_context):short(workspace.title,500),lastInstruction:short(lastInstruction?.data.text),latestResult:short(workspace.mission_id?missionResult(final?.text)?.summary||final?.text:final?.text,2600),decisions:decisions.slice(-4),blocker:short(blockers[workspace.status],1000),nextAction,updatedAt:events.at(-1)?.created||null};
 }

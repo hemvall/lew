@@ -441,3 +441,33 @@ body[data-view="missions"] .table .row .grow{min-width:0}body[data-view="mission
 @media(max-width:650px){.mission-header{padding-bottom:18px}.mission-header h1{font-size:24px;margin-bottom:16px}.mission-header-top{margin-bottom:14px}.mission-header-bottom{gap:16px}.mission-context-tags{gap:6px;font-size:10px}.mission-context-tags code{max-width:180px}.mission-header-actions{width:100%;justify-content:flex-end}.mission-header-actions button,.mission-more>summary{min-height:44px}.mission-more>summary{width:44px}.mission-header-actions .primary{margin-left:auto}.mission-brief>summary{min-height:44px}.mission-brief>div{padding:14px}.mission-brief p{font-size:12px}.mission-team{gap:4px!important}.mission-agent{padding:12px 8px!important}.mission-agent strong{font-size:11px!important}.mission-agent .agent-avatar{width:42px!important;height:42px!important}.mission-agent{grid-template-columns:42px minmax(0,1fr)!important;column-gap:7px!important}}
 
 .launch-worker{padding:12px 0;border-top:1px solid var(--border)}.launch-worker p{font-size:12px;line-height:1.6;color:var(--muted);margin:0 0 10px}.launch-worker button{font-size:12px}
+
+.launch-brief{margin:0 0 22px 38px}.launch-brief>h3{margin:0 0 8px}.launch-brief>p{font-size:12px;line-height:1.5}.launch-brief details{border:1px solid var(--border);border-radius:10px;margin:8px 0;overflow:hidden}.launch-brief summary{cursor:pointer;padding:12px 14px;font-weight:500;font-size:13px}.launch-brief summary:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}.launch-brief dl{padding:0 14px 14px;margin:0}.launch-brief dt{font-size:12px;font-weight:600;margin:14px 0 5px}.launch-brief dd{margin:0;color:var(--muted);font-size:13px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}.launch-team-grid>p{grid-column:1/-1}.launch-summary strong{overflow-wrap:anywhere}.mission-launch textarea[name=objective]{height:132px;max-height:240px;overflow-y:auto}
+
+/* Mission context stays compact so the conversation owns the available height. */
+body[data-view="workspace"] .workspace-mission{flex:0 0 auto;min-width:0;margin:0 0 6px;padding:10px 14px;gap:16px;align-items:center}
+.workspace-mission .mission-context-copy{flex:1;min-width:0;overflow:hidden;gap:3px}
+.mission-context-copy .eyebrow{font-size:10px;line-height:1.4;color:var(--muted);letter-spacing:.04em;margin:0}
+.mission-context-copy>strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:13px;line-height:1.5;font-weight:500}
+.mission-context-copy>small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.workspace-mission>button{flex:0 0 auto;white-space:nowrap;min-height:34px}
+body[data-view="workspace"] .mission-composer-note{flex:0 0 auto;padding:10px 14px;background:var(--panel);color:var(--muted);font-size:12px;line-height:1.5}
+.mission-composer-note p{margin:0}
+body[data-view="workspace"] #top-workspace-context{overflow:visible}
+body[data-view="workspace"] #top-workspace-context .context-bar{flex:1 1 0;min-width:0}
+body[data-view="workspace"] #top-workspace-context .context-workspace-select{max-width:460px}
+body[data-view="workspace"] .split{min-width:0}
+body[data-view="workspace"] .conversation,body[data-view="workspace"] .inspector{min-width:0}
+body[data-view="workspace"] #inspector-content{overflow-wrap:anywhere}
+@media(max-width:760px){body[data-view="workspace"] .workspace-mission{flex-direction:row;gap:10px;padding:9px 11px}.workspace-mission>button{font-size:11px;padding:6px 9px}.mission-context-copy>strong{font-size:12px}#top-workspace-context .workspace-heading #back-project{display:none}#top-workspace-context .context-workspace-select{min-width:0}body[data-view="workspace"] .mission-composer-note{font-size:11px}}
+
+.mission-instructions{margin:10px 0;border:1px solid var(--border);border-radius:10px;font-size:12px;color:var(--muted)}.mission-instructions>summary{padding:12px 14px;cursor:pointer}.mission-instructions>.markdown-body{padding:0 16px 16px;max-height:320px;overflow:auto;font-size:12px}
+.mission-result-tasks{border:1px solid var(--border);border-radius:10px;margin-top:18px}.mission-result-tasks>summary{padding:12px 14px;cursor:pointer;font-size:13px}.mission-result-tasks ol{padding:0 18px 10px 38px}.mission-result-tasks li{padding:6px 0}.mission-result-tasks li p{font-size:13px;color:var(--muted);margin:5px 0 10px}
+.mission-result .message-body>h3{font-size:18px;margin:0 0 14px;line-height:1.4}.mission-result .message-body{overflow-wrap:anywhere}
+body[data-view="workspace"] #inspector-content .resume-field p{font-size:12px;line-height:1.6}
+
+#project-list,.sidebar-chats,body[data-view="workspace"] .messages,body[data-view="workspace"] #inspector-content{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+#project-list::-webkit-scrollbar,.sidebar-chats::-webkit-scrollbar,.messages::-webkit-scrollbar,#inspector-content::-webkit-scrollbar{width:6px;height:6px}
+#project-list::-webkit-scrollbar-thumb,.sidebar-chats::-webkit-scrollbar-thumb,.messages::-webkit-scrollbar-thumb,#inspector-content::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px}
+#project-list::-webkit-scrollbar-track,.sidebar-chats::-webkit-scrollbar-track,.messages::-webkit-scrollbar-track,#inspector-content::-webkit-scrollbar-track{background:transparent}
+@media(max-width:760px){body[data-view="workspace"] .run-status-metrics{display:none}.conversation-head .badge{flex-shrink:0}}

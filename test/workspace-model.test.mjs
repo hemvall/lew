@@ -1,4 +1,15 @@
 import test from 'node:test';
+import {missionSummary,missionResult} from '../public/workspace-model.js';
+test('structured mission results expose readable summary and valid tasks only',()=>{
+  assert.deepEqual(missionResult('{"title":"Plan","summary":"Résumé","tasks":[null,{"title":"Socle","expectedResult":"Application prête"}]}'),{title:'Plan',summary:'Résumé',tasks:[{title:'Socle',expectedResult:'Application prête'}]});
+  assert.equal(missionResult('Texte normal'),null);assert.equal(missionResult('{"summary":12}'),null);
+});
+test('mission banner keeps the goal concise and excludes the attached product brief',()=>{
+  assert.equal(missionSummary({objective:'Créer un assistant.\n\nBrief Product Lab validé :\n\n# Produit\n'+ 'Contenu '.repeat(1000)}),'Créer un assistant.');
+  assert.ok(missionSummary({objective:'Objectif '.repeat(100)}).length<=160);
+  assert.equal(missionSummary({objective:'# Maison Rivage\n\n## Détails'}),'Maison Rivage');
+  assert.equal(missionSummary(null),'Contexte de mission temporairement indisponible');
+});
 import assert from 'node:assert/strict';
 import {conversation,diffLines,sortedProjects} from '../public/workspace-model.js';
 const codex=(id,method,params,requestId)=>({id,kind:'codex',data:{method,params,...(requestId===undefined?{}:{id:requestId})}});

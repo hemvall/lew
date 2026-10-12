@@ -202,3 +202,26 @@ Role contracts in `agent-instructions.mjs` are included in actual Codex turns: A
 ## Mission worker diagnostics
 
 The launch confirmation checks that Git and Codex can start on the worker. If either executable is missing, denied by the process permissions, or times out, the launch stays disabled and shows a recovery message. Use **Vérifier le worker** after correcting the worker installation or restarting Lew in an authorized terminal. The server repeats this check for mission creation requests, before persisting a mission. This check does not verify repository permissions, model quotas, or the Codex account; the existing account check still applies. It never grants permissions automatically.
+
+
+## LangGraph mission orchestration
+
+Missions use LangGraph.js to route planning, workspace preparation, development, review, validation, and completion. Failed review or validation returns to development within the configured correction limit. Codex remains the execution adapter; npm remains the package manager.
+
+Missions use the official `PostgresSaver` with synchronous LangGraph checkpoints (full mission state, pending nodes and writes) in the private `lew_graph` schema. The worker initializes the pinned saver's tables on first use through the same TLS-verified pool as the mission store, enables RLS and revokes browser-role access. The server database role must be able to create this private schema and its tables; setup failure blocks execution instead of falling back to RAM. `npm ci` installs the additional dependency.
+
+A restart requires explicit resume. Lew continues the pending graph node, reconciles it with the durable mission/action records, and skips a node whose effect was already recorded. Older missions without checkpoints enter through their saved stage. Completed Codex outputs are recorded before committing or advancing a stage; recovery first reads that receipt, then the persisted protocol events, and finally the existing native thread via `thread/read`. It never treats a partial response as completion. An unknown outcome blocks the mission without starting another Codex turn; restore access to its native history and retry, or inspect the conversation before deliberately creating a new mission.
+
+Development worktrees have deterministic mission/task identities, so a crash during creation reuses the existing branch. A completed Git commit is reused on replay. Publication is serialized per mission and repeated requests return the stored PR; after an uncertain publication, GitHub lookup includes closed/merged PRs for that mission branch. Pushes remain non-forced. Pause/cancel updates preserve in-flight task results.
+
+Plan and delivery approvals still use Lew's existing explicit controls, not native LangGraph `interrupt()`. The runtime still supports one worker and sequential missions. Arbitrary external shell/network actions cannot be guaranteed exactly once: ambiguous outcomes stop for inspection. Keep `.lew/` and native Codex history as well as the database.
+
+`npm test` includes process-kill recovery tests with the official Postgres saver backed by on-disk PGlite (PostgreSQL), real Git worktrees/commits and an actual Node test command. They cut the worker after worktree creation, after an agent result, and after commit. Agent responses and GitHub PR responses are simulated; a live Codex-account/GitHub smoke test still requires the user's configured worker.
+
+Routine agent work runs in the project sandbox with network access for builds and tests. Additional permissions appear as persistent desktop notifications in the lower-left corner, with approve/decline controls and optional session-scoped consent. Dismissing a card leaves the request pending and accessible through the notification counter. A soft chime plays once per new request after the browser has received a user interaction.
+
+The desktop supports up to 24 local web widgets. Add a name and HTTP(S) URL, then open it in a Lew window; edit or remove it with the widget menu. External sites are sandboxed and an external-tab link remains available for sites that disallow framing. Widgets persist in this browser and work independently of database availability. Database queries explicitly target the private `lew` schema instead of relying on connection startup search paths.
+
+### Personnaliser le bureau
+
+Ouvrez **Réglages** depuis la barre de menus ou le dock (raccourci `Cmd/Ctrl + ,`). Thème clair/sombre/automatique, accent, fond du bureau, densité, animations, transparence et son des autorisations sont enregistrés dans ce navigateur et synchronisés entre les fenêtres Lew. La réduction des animations du système reste prioritaire. Rétablir les réglages ne supprime ni les widgets ni les briefs. Les menus de sélection utilisent le rendu natif personnalisable lorsque le navigateur le permet, avec un menu natif clair/sombre en repli.

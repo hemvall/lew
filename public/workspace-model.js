@@ -80,6 +80,17 @@ export function missionTitle(mission){
   return short(mission.title)||short(mission.plan?.title)||short(mission.plan?.tasks?.[0]?.title)||short(mission.objective)||'Mission en préparation';
 }
 
+export function missionSummary(context){
+  const text=String(context?.objective||'').split(/\n\s*\n|Brief Product Lab validé\s*:/)[0].replace(/^#+\s*/,'').replace(/\s+/g,' ').trim();
+  return text.length>160?text.slice(0,157).trimEnd()+'…':text||'Contexte de mission temporairement indisponible';
+}
+
+export function missionResult(text){
+  try{const value=JSON.parse(text);if(!value||typeof value.summary!=='string')return null;
+    return {title:typeof value.title==='string'?value.title:'Résultat de la mission',summary:value.summary,tasks:Array.isArray(value.tasks)?value.tasks.filter(t=>t&&typeof t.title==='string'&&typeof t.expectedResult==='string'):[]};
+  }catch{return null;}
+}
+
 // Older workspaces may have no date; a malformed update must not hide creation.
 export function chatTimestamp(workspace){
   for(const value of [workspace.updated_at,workspace.updated,workspace.created_at,workspace.created]){

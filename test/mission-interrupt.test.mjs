@@ -28,7 +28,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line',line=>
   const adapter=new MissionAdapter({root:dir,workers,approvals,query:async(...args)=>queries.push(args),event:async(id,kind)=>{if(kind==='turn')await adapter.interrupt(id);}});
   try{
     await assert.rejects(adapter.execute({id:'workspace',cwd:dir},defaults[1],'Develop',resultSchema,Date.now()+5000),error=>error.code==='MISSION_STOPPED');
-    assert.ok(queries.some(args=>args[0]==='UPDATE workspaces SET status=? WHERE id=?'&&args[1]==='interrupted'));
+    assert.ok(queries.some(args=>args[0]==='UPDATE lew.workspaces SET status=? WHERE id=?'&&args[1]==='interrupted'));
     assert.equal(workers.size,0);assert.equal(approvals.size,0);
   }finally{
     if(previous===undefined)delete process.env.LEW_CODEX_BIN;else process.env.LEW_CODEX_BIN=previous;
