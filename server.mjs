@@ -247,7 +247,7 @@ const server=http.createServer(async(req,res)=>{
   for(const file of ['web-widgets.js','approval-notifications.js','approval-notifications.css'])allowed['/'+file]=file;
   for(const name of ['draft-store','navigation-model','resume-model','markdown','verification-model'])allowed[`/${name}.js`]=`${name}.js`;
   if(!allowed[url.pathname]) {res.writeHead(404);return res.end();}
-  res.setHeader('Content-Security-Policy',"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self'; connect-src 'self'; frame-src 'self' https: http:; frame-ancestors 'self'");
+  res.setHeader('Content-Security-Policy',"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' https: http:; connect-src 'self'; frame-src 'self' https: http:; frame-ancestors 'self'");
   res.setHeader('Content-Type',url.pathname.endsWith('.woff2')?'font/woff2':url.pathname.endsWith('.txt')?'text/plain':url.pathname.endsWith('.js')?'text/javascript':url.pathname.endsWith('.css')?'text/css':url.pathname.endsWith('.svg')?'image/svg+xml':url.pathname.endsWith('.json')?'application/json':'text/html');
   res.end(readFileSync(new URL(`./public/${allowed[url.pathname]}`,import.meta.url)));
 });

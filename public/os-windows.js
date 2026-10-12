@@ -62,6 +62,6 @@ export function initApplications(onRoute){
   });
 }
 export function notifyApplicationRoute(route){if(embeddedApplication)parent.postMessage({type:'lew-app-route',route},location.origin);}
-export function appLauncher(){return `<section class="os-launcher"><div class="desktop-heading"><h1>Vos applications.</h1><p>Un espace pour chaque façon de travailler.</p></div><div class="os-apps">${applications.map(app=>`<button data-view="${app.view}" class="os-app-tile"><span class="os-tile-icon os-icon-${app.id}">${icon(app.icon)}</span><strong>${app.name}</strong><small>${app.description}</small></button>`).join('')}</div></section>`;}
+export function appLauncher(){return `<section class="desktop-widget desktop-applications"><div class="widget-title">Applications</div><div class="desktop-native-apps">${applications.map(app=>`<button data-view="${app.view}" class="desktop-app-shortcut" title="${app.description}"><span class="os-tile-icon os-icon-${app.id}">${icon(app.icon)}</span><strong>${app.name}</strong></button>`).join('')}</div></section>`;}
 
 export function openWebWidget(widget){const url=webURL(widget.url);if(new URL(url).origin===location.origin)throw new Error('Choisissez un site externe au bureau Lew.');openApplication({view:'web',webWidget:{...widget,url}});}
