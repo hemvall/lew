@@ -19,8 +19,8 @@
 .os-controls button::before{content:'';position:absolute;width:14px;height:14px;border-radius:50%;background:#ff5d59;box-shadow:inset 0 0 0 1px #0002}
 .os-controls button[data-action=minimize]::before{background:#febc2e}
 .os-controls button[data-action=maximize]::before{background:#28c840}
-.os-controls button svg{position:relative;width:14px;height:14px;opacity:0;fill:none;stroke:#352015;stroke-width:1.25;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
-.os-controls button[data-action=maximize] svg{stroke:#10441c}
+.os-controls button svg{position:relative;width:12px;height:12px;opacity:.65;fill:none;stroke:#fff;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.os-controls button[data-action=maximize] svg{stroke:#fff}
 .os-controls button:hover{transform:none;filter:brightness(1.1);background:#ffffff0c!important}
 .os-controls button:active{transform:none;filter:brightness(.9)}
 .os-controls button:focus-visible{outline:2px solid #91bfff;outline-offset:1px}
@@ -29,6 +29,16 @@
 .os-window.maximized .os-restore-symbol{display:block}
 @media(pointer:coarse){.os-controls button{width:34px;height:34px;flex-basis:34px}.os-controls{gap:2px}}
 
-.os-controls:hover button svg,.os-controls:focus-within button svg{opacity:.7}
-.os-controls .os-expand-symbol,.os-controls .os-restore-symbol{fill:currentColor;stroke:none;color:#10441c}
-@media(hover:none){.os-controls button svg{opacity:.6}}
+.os-controls button:hover svg,.os-controls button:focus-visible svg{opacity:.9}
+.os-controls .os-expand-symbol,.os-controls .os-restore-symbol{fill:currentColor;stroke:none;color:#fff}
+
+
+/* Persistent, quiet symbols with gentle feedback on the traffic lights. */
+@media(prefers-reduced-motion:no-preference){
+  .os-titlebar .os-controls button{transition:background .18s ease,filter .18s ease}
+  .os-controls button::before{transition:transform .2s cubic-bezier(.22,1,.36,1),box-shadow .2s ease}
+  .os-controls button svg{transition:opacity .18s ease,transform .2s cubic-bezier(.22,1,.36,1)}
+  .os-controls button:hover::before,.os-controls button:focus-visible::before{transform:scale(1.08);box-shadow:inset 0 0 0 1px #0002,0 2px 6px #0002}
+  .os-controls button:hover svg{transform:scale(1.04)}
+  .os-controls button:active::before,.os-controls button:active svg{transform:scale(.88)}
+}
