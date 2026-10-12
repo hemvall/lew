@@ -89,3 +89,10 @@ html:not(.dark) .ai-studio .studio-library button.selected{background:var(--wash
 .ai-studio :is(.studio-start-actions button:first-child,.studio-tabs button.selected,.studio-actions button[data-next]),html:not(.dark) .ai-studio :is(.studio-start-actions button:first-child,.studio-tabs button.selected,.studio-actions button[data-next]){background:var(--accent);color:var(--bg);border-color:transparent}
 .ai-studio :is(.studio-start-actions button:first-child,.studio-tabs button.selected,.studio-actions button[data-next]):hover{filter:brightness(.96)}
 @media(max-width:400px){.desktop-dock{gap:8px;padding-inline:10px}.dock-item{width:42px;height:42px}.dock-item svg{width:27px;height:27px}}
+/* Global diagnostics float above the shell; polling never changes its height. */
+body #notice,body[data-view=home] #notice{position:fixed;top:52px;right:18px;left:auto;width:min(370px,calc(100vw - 32px));max-width:none;margin:0;padding:0;z-index:29990;pointer-events:none}
+body #notice:empty{display:none}
+body #notice .system-notice,body[data-view=home] #notice .system-notice{display:flex;align-items:flex-start;gap:12px;margin:0;padding:16px;border-radius:14px;border:1px solid var(--border);background:var(--panel);color:var(--text);box-shadow:0 12px 35px #0003;pointer-events:auto;max-height:35dvh;overflow:auto;font-size:12px}
+.system-notice>div{min-width:0;flex:1}.system-notice strong{font-weight:600}.system-notice p{margin:7px 0 10px;line-height:1.5;overflow-wrap:anywhere}.system-notice #setup-help{color:var(--accent);padding:4px 0}.system-notice .notice-dismiss{display:grid;place-items:center;flex-shrink:0;width:28px;height:28px;border-radius:7px;margin:-5px -5px 0 0;padding:5px}
+.notice-reopen{float:right;display:flex;align-items:center;gap:7px;padding:8px 12px;border-radius:20px;background:var(--panel);border:1px solid var(--border);box-shadow:0 4px 14px #0002;font-size:11px;pointer-events:auto}
+.embedded-app #notice{top:12px;right:12px}

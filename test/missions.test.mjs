@@ -140,3 +140,19 @@ test('a new LangGraph engine resumes persisted review after server recovery with
   await h.engine.control(m.id,'resume');await finish(h);
   assert.equal(h.get().status,'ready');assert.equal(h.calls.filter(r=>r==='developer').length,1);
 });
+test('uncertain Codex outcomes block repeated resume instead of replaying commands',async()=>{
+ const h=harness(),normal=h.adapter.execute;h.adapter.recoverExecution=async()=>null;
+ h.adapter.execute=async(w,p,...args)=>{if(p.role==='developer'){h.calls.push('developer');throw new Error('Transport lost');}return normal(w,p,...args);};
+ const m=await h.engine.create({objective:'Build',criteria:'Pass'},{id:'p'},h.profiles);await finish(h);await h.engine.approve(m.id,plan);await finish(h);
+ for(let i=0;i<2;i++){await h.engine.control(m.id,'resume');await finish(h);assert.equal(h.get().status,'blocked');assert.match(h.get().error,/incertain/);}
+ assert.equal(h.calls.filter(r=>r==='developer').length,1);
+ h.adapter.recoverExecution=async()=>({text:result('pass'),commands:[]});await h.engine.control(m.id,'resume');await finish(h);
+ assert.equal(h.get().status,'ready');assert.equal(h.calls.filter(r=>r==='developer').length,1);
+});
+test('concurrent and repeated publish requests cannot create duplicate PRs',async()=>{
+ const h=harness();let release,start;const started=new Promise(r=>start=r);let count=0;
+ h.adapter.publish=async()=>{count++;start();await new Promise(r=>release=r);return {number:1,url:'https://example.test/pr/1'};};
+ const m=await h.engine.create({objective:'Build',criteria:'Pass'},{id:'p'},h.profiles);await finish(h);await h.engine.approve(m.id,plan);await finish(h);
+ const first=h.engine.publish(m.id);await started;await assert.rejects(h.engine.publish(m.id),/déjà en cours/);release();await first;
+ assert.equal((await h.engine.publish(m.id)).number,1);assert.equal(count,1);
+});

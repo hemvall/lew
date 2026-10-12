@@ -1,10 +1,11 @@
 import {turnPermissions,approvalDecision,pendingApprovals,autonomyInstructions} from './approval-policy.mjs';
+import {checkpointProvider} from './mission-checkpoints.mjs';
 import { missionRoutes } from './mission-routes.mjs';
 import { missionContext } from './mission-context.mjs';
 import { attentionItems } from './public/attention-model.js';
 import http from 'node:http';
 import { selectRoute } from './model-routing.mjs';
-import { configured, query, all, one, closeStorage, initializeStorage, storageState } from './storage.mjs';
+import { configured, query, all, one, closeStorage, initializeStorage, storageState, checkpointPool } from './storage.mjs';
 import { mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
@@ -73,7 +74,7 @@ async function authWorker() {
   })();
   try {return await authPromise;} finally {authPromise=null;}
 }
-const missions=missionRoutes({root,query,all,one,body,authWorker,event,workers,approvals,storageState});
+const missions=missionRoutes({root,query,all,one,body,authWorker,event,workers,approvals,storageState,checkpointer:checkpointProvider(checkpointPool)});
 async function codexAvailable(){try{const command=codexCommand();await exec(command.file,[...command.args,'--version'],{timeout:5000});return true;}catch{return false;}}
 async function api(req, path, params=new URLSearchParams()) {
   const missionResult=await missions.route(req,path);if(missionResult!==null)return missionResult;

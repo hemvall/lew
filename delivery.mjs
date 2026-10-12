@@ -57,8 +57,9 @@ export async function publish(cwd,repo,branch,{title,body,base='main',draft=true
   if(!/^[\w./-]+$/.test(base)||base.startsWith('-')||base.includes('..')||base===branch)throw new Error('Branche cible invalide.');
   // Non-forced pushes fail cleanly if another machine has advanced the branch.
   await git(cwd,['push','--set-upstream','origin',`HEAD:refs/heads/${branch}`]);
-  const existing=await request(repo,`pulls?state=open&head=${encodeURIComponent(repo.split('/')[0]+':'+branch)}`);
-  if(existing.length)return {number:existing[0].number,url:existing[0].html_url,existing:true};
+  const existing=await request(repo,`pulls?state=all&head=${encodeURIComponent(repo.split('/')[0]+':'+branch)}&base=${encodeURIComponent(base)}&per_page=100`);
+  const matching=existing.find(pr=>!pr.base||pr.base.ref===base);
+  if(matching)return {number:matching.number,url:matching.html_url,existing:true};
   const pr=await request(repo,'pulls',{method:'POST',body:{title:title.trim(),body,head:branch,base,draft:!!draft}});
   return {number:pr.number,url:pr.html_url,existing:false};
 }

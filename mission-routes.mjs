@@ -12,10 +12,11 @@ export function missionRoutes(deps){
     async list(){return (await all('SELECT data FROM lew.missions ORDER BY created DESC')).map(r=>r.data);},
     async get(id){const r=await one('SELECT data FROM lew.missions WHERE id=?',id);if(!r)throw new Error('Mission introuvable.');return r.data;},
     async save(m){const version=m.version||0;const r=await one(`INSERT INTO lew.missions(id,project_id,status,data) VALUES(?,?,?,?::jsonb) ON CONFLICT(id) DO UPDATE SET status=CASE WHEN COALESCE((missions.data->>'version')::int,0)=? THEN excluded.status ELSE missions.status END, data=excluded.data || CASE WHEN NOT jsonb_exists(excluded.data,'title') AND jsonb_exists(missions.data,'title') THEN jsonb_build_object('title',missions.data->'title') ELSE '{}'::jsonb END || jsonb_build_object('status',CASE WHEN COALESCE((missions.data->>'version')::int,0)=? THEN excluded.status ELSE missions.status END,'version',COALESCE((missions.data->>'version')::int,0)+1),updated=now() RETURNING data`,m.id,m.projectId,m.status,JSON.stringify({...m,version:version+1}),version,version);m.status=r.data.status;m.version=r.data.version;},
+    async controlState(id,previous,status){const r=await one("UPDATE lew.missions SET status=?,data=data || jsonb_build_object('status',?::text,'version',COALESCE((data->>'version')::int,0)+1),updated=now() WHERE id=? AND status=? RETURNING data",status,status,id,previous);if(!r)throw new Error('La mission a changé. Actualisez avant de réessayer.');return r.data;},
     event(id,kind,data){return query('INSERT INTO lew.mission_events(mission_id,kind,data) VALUES(?,?,?)',id,kind,JSON.stringify(data));},
     execution(id,w,data){return query('INSERT INTO lew.mission_executions(id,mission_id,workspace_id,data) VALUES(?,?,?,?)',data.id,id,w.id,JSON.stringify(data));}
   };
-  const adapter=new MissionAdapter(deps),engine=new MissionEngine(store,adapter);
+  const adapter=new MissionAdapter(deps),engine=new MissionEngine(store,adapter,{checkpointer:deps.checkpointer});
   const titleRequests=new Map();
   let seedPromise;
   async function ready(){await engine.recover();if(!seedPromise)seedPromise=(async()=>{
@@ -55,7 +56,7 @@ export function missionRoutes(deps){
       return titleRequests.get(id);
     }
     const mission=path.match(/^\/api\/missions\/([^/]+)(?:\/(approve|pause|resume|interrupt|cancel|publish))?$/);
-    if(mission){if(req.method==='GET'&&!mission[2]){const m=await store.get(mission[1]);return {mission:m,events:await all('SELECT * FROM lew.mission_events WHERE mission_id=? ORDER BY id',m.id),executions:await all('SELECT e.*,w.status AS workspace_status FROM lew.mission_executions e JOIN lew.workspaces w ON w.id=e.workspace_id WHERE mission_id=? ORDER BY e.created',m.id)};}if(req.method==='POST'&&mission[2]==='publish'){const m=await store.get(mission[1]);if(!['ready','published'].includes(m.status))throw new Error('Mission non validée.');const pr=await adapter.publish(m);m.pr=pr;m.status='published';await store.save(m);await store.event(m.id,'published',pr);return pr;}if(req.method==='POST'&&mission[2])return mission[2]==='approve'?engine.approve(mission[1],(await body(req)).plan):engine.control(mission[1],mission[2]);}
+    if(mission){if(req.method==='GET'&&!mission[2]){const m=await store.get(mission[1]);return {mission:m,events:await all('SELECT * FROM lew.mission_events WHERE mission_id=? ORDER BY id',m.id),executions:await all('SELECT e.*,w.status AS workspace_status FROM lew.mission_executions e JOIN lew.workspaces w ON w.id=e.workspace_id WHERE mission_id=? ORDER BY e.created',m.id)};}if(req.method==='POST'&&mission[2]==='publish'){return engine.publish(mission[1]);}if(req.method==='POST'&&mission[2])return mission[2]==='approve'?engine.approve(mission[1],(await body(req)).plan):engine.control(mission[1],mission[2]);}
     throw new Error('Route mission inconnue.');
   }};
 }

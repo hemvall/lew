@@ -1,3 +1,4 @@
+import {resultFromEvents,resultFromThread} from './mission-recovery.mjs';
 import {turnPermissions} from './approval-policy.mjs';
 import { randomUUID } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
@@ -33,12 +34,40 @@ export class MissionAdapter {
     const head=await git(repo,['-c','user.name=Lew','-c','user.email=lew@localhost','commit-tree',tree,'-m','chore: initialize mission workspace']);
     await git(repo,['update-ref',ref,head]);return head;
   }
-  async development(m,task,base){if(task.workspace&&existsSync(task.workspace.cwd))return task.workspace;const id=randomUUID(),cwd=join(this.root,'workspaces',id),branch=`lew/mission-${m.id.slice(0,6)}-${task.id}`;await git(this.repo(m),['worktree','add','-b',branch,cwd,base]);return {cwd,branch};}
+  async development(m,task,base){
+    if(task.workspace){if(existsSync(task.workspace.cwd))return task.workspace;throw new Error('Worktree de mission absent. Restaurez le dossier du worker avant de reprendre.');}
+    const cwd=join(this.root,'workspaces',`mission-${m.id}-${task.id}`),branch=`feat/mission-${m.id}-${task.id}`;
+    if(existsSync(cwd)){
+      const existing=await snapshot(cwd);
+      if(existing.branch!==branch)throw new Error('Worktree de reprise incompatible.');
+      return {cwd,branch};
+    }
+    let exists=false;try{await git(this.repo(m),['show-ref','--verify',`refs/heads/${branch}`]);exists=true;}catch{}
+    await git(this.repo(m),exists?['worktree','add',cwd,branch]:['worktree','add','-b',branch,cwd,base]);
+    return {cwd,branch};
+  }
   async isolate(m,task,role,head){const cwd=join(this.root,'workspaces',randomUUID());await git(this.repo(m),['worktree','add','--detach',cwd,head]);return {cwd,branch:''};}
   async workspace(m,role,task,context){const id=randomUUID(),w={id,project_id:m.projectId,title:`${m.profiles[role].name} · ${task?.title||'Plan de mission'}`,branch:context.branch||'',cwd:context.cwd,thread_id:null,status:'idle'};await this.query('INSERT INTO lew.workspaces(id,project_id,title,branch,cwd,thread_id,status) VALUES(?,?,?,?,?,?,?)',w.id,w.project_id,w.title,w.branch,w.cwd,null,'idle');return w;}
   async snapshot(context){return snapshot(context.cwd);}
-  async commit(context,task){const s=await snapshot(context.cwd);if(s.files.length)await commitSelected(context.cwd,{files:s.files.map(p=>p.path),fingerprint:s.fingerprint,message:task.title},context.branch);const result=await snapshot(context.cwd);if(result.files.length)throw new Error('Le développeur a laissé des changements non livrés.');return {...result,diff:(await git(context.cwd,['diff',task.gitBase,'HEAD'])).slice(0,100000),changedFiles:(await git(context.cwd,['diff','--name-only',task.gitBase,'HEAD'])).split('\n').filter(Boolean)};}
+  async commit(context,task){const s=await snapshot(context.cwd);if(s.files.length)await commitSelected(context.cwd,{files:s.files.map(p=>p.path),fingerprint:s.fingerprint,message:/^(feat|fix|refactor|docs|test|chore): /.test(task.title)?task.title:`feat: ${task.title}`},context.branch);const result=await snapshot(context.cwd);if(result.files.length)throw new Error('Le développeur a laissé des changements non livrés.');return {...result,diff:(await git(context.cwd,['diff',task.gitBase,'HEAD'])).slice(0,100000),changedFiles:(await git(context.cwd,['diff','--name-only',task.gitBase,'HEAD'])).split('\n').filter(Boolean)};}
   async publish(m){const task=m.tasks.at(-1);if(!task?.result||!task.workspace)throw new Error('Livraison absente.');const current=await snapshot(task.workspace.cwd);if(current.head!==task.result.head||current.fingerprint!==task.result.fingerprint)throw new Error('Les fichiers ont changé. Revue et validation invalidées.');return publish(task.workspace.cwd,m.project.repo,task.workspace.branch,{title:(m.title||m.plan?.title||m.objective).slice(0,200),body:`Mission Lew\n\n${m.criteria}\n\n${task.result.summary}\n\nValidation : ${task.validation?.summary||''}`,base:m.base,draft:true,head:task.result.head});}
+  async recoverExecution(ex){
+    // No workspace was persisted: execute() could not yet have been called.
+    if(!ex.workspaceId)return {notStarted:true};
+    const events=(await this.query('SELECT kind,data FROM lew.events WHERE workspace_id=? ORDER BY id',ex.workspaceId)).rows;
+    const recorded=resultFromEvents(events);if(recorded)return recorded;
+    const w=(await this.query('SELECT thread_id FROM lew.workspaces WHERE id=?',ex.workspaceId)).rows[0];
+    if(!w)throw new Error('Conversation de reprise introuvable.');
+    if(!w.thread_id)return {notStarted:true};
+    const client=new Codex(()=>{});
+    try{
+      await client.initialize();
+      const {thread}=await client.request('thread/read',{threadId:w.thread_id,includeTurns:true});
+      const result=resultFromThread(thread);
+      if(result)await this.event(ex.workspaceId,'mission_result',result);
+      return result;
+    }finally{client.close();}
+  }
   async interrupt(id){const c=this.workers.get(id);if(c?.missionTurn)await c.request('turn/interrupt',c.missionTurn);}
   async execute(w,profile,prompt,outputSchema,deadline,canRun=async()=>true){
     let c,resolveDone,rejectDone,timer,finished=false,queue=Promise.resolve();const commands=[];let text='';
@@ -52,6 +81,7 @@ export class MissionAdapter {
       if(m.id!==undefined&&m.method){if(['item/commandExecution/requestApproval','item/fileChange/requestApproval'].includes(m.method)){this.approvals.set(`${w.id}:${m.id}`,m);await this.query("UPDATE lew.workspaces SET status='waiting' WHERE id=?",w.id);}else c.send({id:m.id,error:{code:-32601,message:'Interaction non prise en charge'}});}
       if(m.method==='turn/completed'&&(!m.params.threadId||m.params.threadId===w.thread_id)){
         const status=m.params.turn.status;
+        if(status==='completed')await this.event(w.id,'mission_result',{text,commands});
         await this.query('UPDATE lew.workspaces SET status=? WHERE id=?',status==='completed'?'completed':status==='interrupted'?'interrupted':'failed',w.id);
         const error=status==='completed'?null:new Error('Exécution Codex '+status);
         if(status==='interrupted')error.code='MISSION_STOPPED';

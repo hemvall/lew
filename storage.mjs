@@ -43,3 +43,5 @@ export async function query(sql,...args) {
 export async function all(sql,...args){return (await query(sql,...args)).rows;}
 export async function one(sql,...args){return (await all(sql,...args))[0];}
 export async function closeStorage(){await pool?.end();}
+
+export async function checkpointPool(){await initializeStorage();if(!ready)throw new Error(storageState().error||'Supabase à configurer.');return pool;}

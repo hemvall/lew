@@ -40,6 +40,8 @@ function animateView(){
 }
 let accessToken=sessionStorage.getItem('lew-token')||'';
 const preferences=initPreferences({modal,toast});
+document.body.append($('#notice'));
+let dismissedNotice='',noticeMessage='';
 async function api(path,method='GET',data){
   const response=await fetch('/api/'+path,{method,headers:{...(data?{'Content-Type':'application/json'}:{}),...(accessToken?{Authorization:'Bearer '+accessToken}:{})},body:data?JSON.stringify(data):undefined});
   const result=await response.json();if(!response.ok){if(response.status===401) showAccess();throw new Error(result.error||'Une erreur est survenue');}return result;
@@ -113,7 +115,16 @@ function updateChrome(){
   const active=state.workspaces.filter(w=>w.status==='running').length, review=attentionCount();
   $('#active-count').textContent=active;$('#review-count').textContent=review;$('#worker-label').textContent=state.worker.available?'Worker disponible':'Worker à connecter';$('#worker-dot').classList.toggle('ready',state.worker.available);
   $('.connected').classList.toggle('not-connected',!state.storage.ready);
-  $('#notice').innerHTML=state.storage.error?`<div class="alert" role="status">${escape(state.storage.error)} <button id="setup-help">Voir la configuration</button></div>`:!state.storage.ready?'<div class="alert">Votre espace est prêt à être configuré. Renseignez la connexion Supabase côté serveur pour enregistrer vos projets. <button id="setup-help">Voir la configuration</button></div>':'';
+  const message=state.storage.error||(!state.storage.ready?'Configurez la connexion Supabase pour enregistrer vos projets.':'');
+  if(message!==noticeMessage){noticeMessage=message;dismissedNotice='';}
+  const notice=$('#notice'),signature=message+'|'+dismissedNotice;
+  if(notice.dataset.signature!==signature){
+    notice.dataset.signature=signature;
+    notice.innerHTML=!message?'':dismissedNotice?`<button class="notice-reopen" aria-label="Afficher le problème de connexion">${icon('activity')} Connexion à vérifier</button>`:`<div class="alert system-notice"><div><strong>Connexion à vérifier</strong><p>${escape(message)}</p><button id="setup-help">Voir la configuration</button></div><button class="notice-dismiss" aria-label="Masquer ce message">${icon('close')}</button></div>`;
+    notice.querySelector('.notice-dismiss')?.addEventListener('click',()=>{dismissedNotice=message;updateChrome();});
+    notice.querySelector('.notice-reopen')?.addEventListener('click',()=>{dismissedNotice='';updateChrome();});
+    if(notice.querySelector('#setup-help'))notice.querySelector('#setup-help').onclick=showSetup;
+  }
 }
 function render(){
   if(!embeddedApplication&&view!=='home'){const route=currentRoute();applyRoute({view:'home'});openApplication(route);}
