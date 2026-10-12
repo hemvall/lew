@@ -1,3 +1,4 @@
+import {turnPermissions,approvalDecision,pendingApprovals,autonomyInstructions} from './approval-policy.mjs';
 import { missionRoutes } from './mission-routes.mjs';
 import { missionContext } from './mission-context.mjs';
 import { attentionItems } from './public/attention-model.js';
@@ -124,7 +125,7 @@ async function api(req, path, params=new URLSearchParams()) {
       attention={items:attentionItems({projects,workspaces,missions:missionList,pendingWorkspaceIds:[...approvals.keys()].map(key=>key.slice(0,key.indexOf(':')))}),complete:results.every(r=>r.status==='fulfilled')};
       if(!attention.complete)attention.error='Certaines décisions n’ont pas pu être chargées. Réessayez l’actualisation.';
     }
-    return {projects,workspaces,attention,catalog,storage:storageState(),worker:{available:await codexAvailable()},authenticatedRemote:!!process.env.LEW_ACCESS_TOKEN};
+    return {projects,workspaces,attention,catalog,pendingApprovals:pendingApprovals(approvals,workspaces),storage:storageState(),worker:{available:await codexAvailable()},authenticatedRemote:!!process.env.LEW_ACCESS_TOKEN};
   }
   if(req.method==='GET'&&path==='/api/github/repos')return listRepositories({page:params.get('page')||1,owner:params.get('owner')||process.env.GITHUB_USER||'hemvall'});
   if(req.method==='POST'&&path==='/api/github/import'){
@@ -198,7 +199,7 @@ async function api(req, path, params=new URLSearchParams()) {
         const routing=selectRoute(catalog.data||catalog.models||[],message);
         await event(w.id,'routing',routing);
         await event(w.id,'user',{text:message}); await status(w.id,'running');
-        const turn=await c.request('turn/start',{threadId:fresh.thread_id,model:routing.model,effort:routing.effort,input:[{type:'text',text:`Contexte du projet ${p.name}:\n${p.context}\n\nTâche: ${w.title}\nBranche: ${w.branch}\n\n${message}`}]});
+        const turn=await c.request('turn/start',{threadId:fresh.thread_id,...turnPermissions(w.cwd),model:routing.model,effort:routing.effort,input:[{type:'text',text:`${autonomyInstructions}\n\nContexte du projet ${p.name}:\n${p.context}\n\nTâche: ${w.title}\nBranche: ${w.branch}\n\n${message}`}]});
         await event(w.id,'turn',{id:turn.turn.id}); return {ok:true};
       } catch(e) {workers.get(w.id)?.close();workers.delete(w.id);await status(w.id,'failed');await event(w.id,'error',{text:e.message});throw e;} finally {locks.delete(w.id);}
     }
@@ -209,7 +210,7 @@ async function api(req, path, params=new URLSearchParams()) {
     }
     if(req.method==='POST'&&action==='approval') {
       const b=await body(req), key=`${w.id}:${b.id}`, a=approvals.get(key), c=workers.get(w.id); if(!a||!c) throw new Error('Validation expirée');
-      approvals.delete(key);if(![...approvals.keys()].some(k=>k.startsWith(w.id+':')))await status(w.id,'running');c.send({id:a.id,result:{decision:b.accept===true?'accept':'decline'}});await event(w.id,'approval',{id:a.id,accepted:b.accept===true});return {ok:true};
+      const decision=approvalDecision(a,b.accept===true,b.session===true);c.send({id:a.id,result:{decision}});approvals.delete(key);if(![...approvals.keys()].some(k=>k.startsWith(w.id+':')))await status(w.id,'running');await event(w.id,'approval',{id:a.id,accepted:b.accept===true,session:decision==='acceptForSession'});return {ok:true};
     }
   }
   throw new Error('Route inconnue');

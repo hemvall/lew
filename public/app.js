@@ -1,3 +1,4 @@
+import {approvalNotifications} from './approval-notifications.js';
 import { icon } from './icons.js';
 import { studioUI } from './studio-ui.js';
 import {applicationFor} from './os-model.js';
@@ -40,6 +41,7 @@ async function api(path,method='GET',data){
   const response=await fetch('/api/'+path,{method,headers:{...(data?{'Content-Type':'application/json'}:{}),...(accessToken?{Authorization:'Bearer '+accessToken}:{})},body:data?JSON.stringify(data):undefined});
   const result=await response.json();if(!response.ok){if(response.status===401) showAccess();throw new Error(result.error||'Une erreur est survenue');}return result;
 }
+const approvalCenter=!embeddedApplication?approvalNotifications({api,openWorkspace:item=>navigate('workspace',item.projectId,item.workspaceId)}):null;
 function toast(message){$('#toast').textContent=message;$('#toast').style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').style.display='none',6000);}
 function modal(title,html){$('#modal-body').onkeydown=null;$('#modal-title').textContent=title;$('#modal-body').innerHTML=html;if(!$('#modal').open){$('#modal').showModal();if(!reducedMotion())$('#modal').animate([{opacity:0,transform:'translateY(12px) scale(.96)'},{opacity:1,transform:'translateY(0) scale(1)'}],{duration:240,easing:'cubic-bezier(.22,1,.36,1)'});}}
 function closeModal(){$('#modal').close();}
@@ -250,7 +252,7 @@ async function refresh(){
     if(!next.storage.ready){next.projects=state.projects;next.workspaces=state.workspaces;next.attention={...state.attention,complete:false};}
     else{stateLoaded=true;if(next.catalog?.projectsComplete===false)next.projects=state.projects;if(next.catalog?.workspacesComplete===false)next.workspaces=state.workspaces;}
     const changed=JSON.stringify(next)!==JSON.stringify(state),keepConversation=view==='workspace'&&$('#messages')&&workspaceViewSignature(next)===workspaceViewSignature(state);
-    state=next;
+    state=next;approvalCenter?.update(next.pendingApprovals);
     if(view==='workspace'){const workspace=state.workspaces.find(w=>w.id===workspaceId);if(workspace)projectId=workspace.project_id;}
     if(changed){if(view==='studio'||keepConversation||(['agents','missions'].includes(view)&&wasLoaded)){updateChrome();bindNavigation();}else render();}
     if(view==='workspace')await loadWorkspace();
